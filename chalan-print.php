@@ -38,21 +38,13 @@ if (!$canSeeAll) {
 
 $sqlTrip = "SELECT
                 t.id, t.trip_no, t.start_date, t.end_date, t.status,
-                t.distance_km, t.notes,
+                t.notes,
                 l.lorry_number, l.lorry_type, l.owner_name,
-                l.address AS lorry_address,
                 d.driver_name, d.phone AS driver_phone, d.license_no AS driver_license,
                 bf.branch_name AS from_branch_name,
                 bf.branch_code AS from_branch_code,
-                bf.address     AS from_branch_address,
-                bf.city        AS from_branch_city,
-                bf.state       AS from_branch_state,
-                bf.phone       AS from_branch_phone,
                 bt.branch_name AS to_branch_name,
-                bt.branch_code AS to_branch_code,
-                bt.address     AS to_branch_address,
-                bt.city        AS to_branch_city,
-                bt.state       AS to_branch_state
+                bt.branch_code AS to_branch_code
             FROM trip t
             LEFT JOIN lorry  l  ON l.id  = t.lorry_id
             LEFT JOIN driver d  ON d.id  = t.driver_id
@@ -80,7 +72,7 @@ $partyCount = 0;
 $resParties = mysqli_query(
     $conn,
     "SELECT tp.id, tp.freight_amount, tp.advance_paid,
-            p.legal_name, p.trade_name, p.gstin
+            p.legal_name, p.trade_name
      FROM trip_party tp
      LEFT JOIN party p ON p.id = tp.party_id
      WHERE tp.trip_id = $tripId
@@ -123,7 +115,7 @@ foreach ($items as $it) {
 }
 
 /* =========================================================
-   COMPANY HEADER — edit these lines when details change
+   COMPANY HEADER
    ========================================================= */
 $companyName    = 'DIPAK TRANSPORT SERVICES';
 $companyTagline = 'Truck Suppliers & Commission Agent';
@@ -170,9 +162,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             line-height: 1.25;
         }
 
-        /* =========================================================
-           PRINT TOOLBAR (screen only)
-           ========================================================= */
+        /* Print toolbar */
         .print-toolbar {
             background: #fff;
             padding: 10px 16px;
@@ -209,10 +199,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             font-size: 12px;
         }
 
-        /* =========================================================
-           PAGE CANVAS
-           A5 landscape = 210mm x 148mm
-           ========================================================= */
+        /* Page canvas */
         .page {
             width: 210mm;
             height: 148mm;
@@ -225,9 +212,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             flex-direction: column;
         }
 
-        /* =========================================================
-           HEADER
-           ========================================================= */
+        /* Header */
         .header {
             display: flex;
             align-items: flex-start;
@@ -293,9 +278,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             white-space: nowrap;
         }
 
-        /* =========================================================
-           META STRIP
-           ========================================================= */
+        /* Meta strip */
         .meta-strip {
             display: flex;
             border: 1px solid #000;
@@ -332,9 +315,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             text-overflow: ellipsis;
         }
 
-        /* =========================================================
-           DETAIL BLOCK
-           ========================================================= */
+        /* Detail block */
         .detail-block {
             display: flex;
             border: 1px solid #000;
@@ -355,7 +336,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
         .detail-row {
             display: flex;
             font-size: 9px;
-            margin-bottom: 1px;
+            margin-bottom: 2px;
             align-items: baseline;
             gap: 4px;
         }
@@ -365,7 +346,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
         }
 
         .detail-row .k {
-            flex: 0 0 40%;
+            flex: 0 0 42%;
             font-weight: 700;
             font-size: 8px;
             text-transform: uppercase;
@@ -384,9 +365,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             text-overflow: ellipsis;
         }
 
-        /* =========================================================
-           ITEMS TABLE
-           ========================================================= */
+        /* Items table */
         .items-wrap {
             flex: 1 1 auto;
             margin-bottom: 4px;
@@ -441,9 +420,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             padding: 2px 5px;
         }
 
-        /* =========================================================
-           TAX ROW
-           ========================================================= */
+        /* GST row (blank, handwrite) */
         table.tax {
             width: 100%;
             border-collapse: collapse;
@@ -470,48 +447,13 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             height: 14px;
         }
 
-        /* =========================================================
-           PAYMENT BAND
-           ========================================================= */
-        .payment-line {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 8.5px;
-            padding: 3px 4px;
-            border: 1px solid #000;
-            margin-bottom: 4px;
-        }
-
-        .payment-line .paid-box {
-            display: flex;
-            gap: 14px;
-            font-weight: 700;
-            letter-spacing: 0.4px;
-        }
-
-        .payment-line .paid-box .box {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border: 1px solid #000;
-            vertical-align: middle;
-            margin-right: 3px;
-        }
-
-        .payment-line .tax-note {
-            font-size: 8px;
-        }
-
-        /* =========================================================
-           SIGNATURES
-           ========================================================= */
+        /* Signatures */
         .signatures {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
             margin-top: auto;
-            padding-top: 8mm;
+            padding-top: 10mm;
         }
 
         .sig-block {
@@ -539,9 +481,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             margin-top: 1px;
         }
 
-        /* =========================================================
-           FOOTER
-           ========================================================= */
+        /* Footer */
         .page-footer {
             margin-top: 3px;
             padding-top: 3px;
@@ -552,9 +492,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             justify-content: space-between;
         }
 
-        /* =========================================================
-           PRINT OVERRIDES
-           ========================================================= */
+        /* Print overrides */
         @media print {
             body {
                 background: #fff;
@@ -580,9 +518,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
 
 <body>
 
-    <!-- =========================================================
-         PRINT TOOLBAR (screen only)
-         ========================================================= -->
+    <!-- Print toolbar (screen only) -->
     <div class="print-toolbar">
         <div>
             <a href="trip-view.php?id=<?= (int) $trip['id'] ?>" class="btn secondary">
@@ -597,9 +533,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
         </div>
     </div>
 
-    <!-- =========================================================
-         THE CHALAN PAGE
-         ========================================================= -->
+    <!-- The chalan page -->
     <div class="page">
 
         <!-- HEADER -->
@@ -645,15 +579,11 @@ $companyGstin   = '19AMRPT0703N1ZQ';
         <!-- DETAILS -->
         <div class="detail-block">
 
-            <!-- Left: lorry / driver -->
+            <!-- LEFT: Lorry / Driver -->
             <div class="detail-col">
                 <div class="detail-row">
                     <span class="k">Vehicle No</span>
                     <span class="v"><?= htmlspecialchars($trip['lorry_number'] ?: '', ENT_QUOTES, 'UTF-8') ?></span>
-                </div>
-                <div class="detail-row">
-                    <span class="k">Chassis No</span>
-                    <span class="v">&nbsp;</span>
                 </div>
                 <div class="detail-row">
                     <span class="k">Driver's Name</span>
@@ -673,15 +603,11 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                 </div>
             </div>
 
-            <!-- Right: goods -->
+            <!-- RIGHT: Goods + Invoice -->
             <div class="detail-col">
                 <div class="detail-row">
                     <span class="k">Value of Goods Rs.</span>
                     <span class="v"><?= number_format($valueOfGoods, 2) ?></span>
-                </div>
-                <div class="detail-row">
-                    <span class="k">E-Way Bill No</span>
-                    <span class="v">&nbsp;</span>
                 </div>
                 <div class="detail-row">
                     <span class="k">Invoice No</span>
@@ -694,14 +620,6 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                 <div class="detail-row">
                     <span class="k">No. of Items</span>
                     <span class="v"><?= count($items) ?></span>
-                </div>
-                <div class="detail-row">
-                    <span class="k">Distance (km)</span>
-                    <span class="v">
-                        <?php if (!empty($trip['distance_km']) && (float) $trip['distance_km'] > 0): ?>
-                            <?= number_format((float) $trip['distance_km'], 2) ?>
-                            <?php else: ?>&nbsp;<?php endif; ?>
-                    </span>
                 </div>
             </div>
 
@@ -769,7 +687,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             </table>
         </div>
 
-        <!-- TAX ROW (blank, handwriting) -->
+        <!-- GST ROW (blank — handwrite for now; auto-calculated in Phase 3) -->
         <table class="tax">
             <tr>
                 <th style="width: 25%;">CGST 2.5%</th>
@@ -784,17 +702,6 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                 <td>&nbsp;</td>
             </tr>
         </table>
-
-        <!-- PAYMENT BAND -->
-        <div class="payment-line">
-            <div class="paid-box">
-                <span><span class="box"></span>PAID</span>
-                <span><span class="box"></span>TO PAY</span>
-            </div>
-            <div class="tax-note">
-                Tax Payable by Consignor / Consignee / Carrier
-            </div>
-        </div>
 
         <!-- SIGNATURES -->
         <div class="signatures">

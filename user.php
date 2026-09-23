@@ -1,7 +1,7 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
 $editId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $isEdit = $editId > 0;
@@ -96,7 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* Password rules */
     if (!$isEdit) {
-        // Add mode: password required
         if ($password === '') {
             $errorList[] = 'Password is required.';
         } elseif (strlen($password) < 6) {
@@ -105,7 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorList[] = 'Password and confirmation do not match.';
         }
     } else {
-        // Edit mode: password optional, but if given must be valid
         if ($password !== '') {
             if (strlen($password) < 6) {
                 $errorList[] = 'New password must be at least 6 characters.';
@@ -273,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 name="full_name"
                                                 class="form-control"
                                                 maxlength="100"
-                                                placeholder="e.g. Ramesh Kumar"
+                                                placeholder="Enter full name"
                                                 value="<?= htmlspecialchars($old['full_name'], ENT_QUOTES, 'UTF-8') ?>">
                                         </div>
                                     </div>
@@ -289,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 name="username"
                                                 class="form-control"
                                                 maxlength="30"
-                                                placeholder="e.g. ramesh"
+                                                placeholder="Enter username"
                                                 autocomplete="off"
                                                 value="<?= htmlspecialchars($old['username'], ENT_QUOTES, 'UTF-8') ?>">
                                             <small class="form-text text-muted">

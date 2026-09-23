@@ -9,10 +9,10 @@ include 'session.php';
 $editId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $isEdit = $editId > 0;
 
-/* Popup mode: rendered inside an iframe from trip.php */
+/* Popup mode — rendered inside an iframe from trip.php */
 $isPopup = isset($_GET['popup']) && (int) $_GET['popup'] === 1;
 
-/* Return-to-sender support (kept — dormant unless ?return= is present) */
+/* Return-to-sender (kept — dormant unless ?return= is present) */
 $return_to = isset($_GET['return'])
     ? preg_replace('/[^a-z0-9_\-\.]/i', '', $_GET['return'])
     : '';
@@ -27,7 +27,7 @@ $pageTitle = $isEdit ? 'Edit Party | Billing Portal' : 'Add Party | Billing Port
 $error     = '';
 $errorList = [];
 
-/* Popup result holders — declared up front to avoid PHP notices */
+/* Popup result holders — declared up front */
 $popup_saved_id    = 0;
 $popup_saved_label = '';
 
@@ -97,7 +97,7 @@ if ($resB) {
    ========================================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    /* Popup mode may come in via POST as a hidden field too */
+    /* Popup mode may come in via POST as a hidden field */
     if (isset($_POST['popup_mode']) && (int) $_POST['popup_mode'] === 1) {
         $isPopup = true;
     }
@@ -334,7 +334,7 @@ JS;
     <?php if ($isPopup): ?>
 
         <!-- =========================================================
-         POPUP MODE — no sidebar, no topbar, no footer
+         POPUP MODE — no chrome, form only
          ========================================================= -->
         <div class="container-fluid">
 
@@ -352,14 +352,12 @@ JS;
             <div id="gstAlert"></div>
 
             <!-- GST VERIFICATION -->
-            <div class="card shadow mb-3">
-
+            <div class="card shadow-sm mb-3">
                 <div class="card-header py-2 d-flex align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">
                         <i class="fas fa-search mr-1"></i>
                         GST Verification
                     </h6>
-
                     <div class="custom-control custom-checkbox">
                         <input type="checkbox" class="custom-control-input" id="no_gst">
                         <label class="custom-control-label" for="no_gst">
@@ -367,12 +365,10 @@ JS;
                         </label>
                     </div>
                 </div>
-
-                <div class="card-body">
+                <div class="card-body py-3">
 
                     <div class="form-group mb-0">
                         <label for="gstin">GST Number</label>
-
                         <div class="input-group">
                             <input
                                 type="text"
@@ -411,13 +407,13 @@ JS;
                     </div>
 
                     <div id="gstResult" class="d-none mt-3">
-                        <div class="alert alert-light border mb-0">
-                            <div class="row">
-                                <div class="col-md-4 mb-2 mb-md-0">
+                        <div class="alert alert-light border mb-0 py-2">
+                            <div class="row small">
+                                <div class="col-md-4 mb-1 mb-md-0">
                                     <strong>GSTIN:</strong>
                                     <span id="resultGstin">-</span>
                                 </div>
-                                <div class="col-md-4 mb-2 mb-md-0">
+                                <div class="col-md-4 mb-1 mb-md-0">
                                     <strong>Status:</strong>
                                     <span id="resultStatus" class="badge badge-success">-</span>
                                 </div>
@@ -430,7 +426,6 @@ JS;
                     </div>
 
                 </div>
-
             </div>
 
             <!-- PARTY FORM -->
@@ -447,161 +442,100 @@ JS;
                 <input type="hidden" name="popup_mode" value="1">
 
                 <!-- PARTY DETAILS -->
-                <div class="card shadow mb-3">
-
+                <div class="card shadow-sm mb-3">
                     <div class="card-header py-2">
                         <h6 class="m-0 font-weight-bold text-primary">
                             <i class="fas fa-user mr-1"></i>
                             Party Details
                         </h6>
                     </div>
-
                     <div class="card-body">
 
-                        <div class="row">
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="branch_id">
-                                        Branch <span class="text-danger">*</span>
-                                    </label>
-                                    <select id="branch_id" name="branch_id" class="form-control">
-                                        <option value="">— Select Branch —</option>
-                                        <?php foreach ($branches as $b): ?>
-                                            <option value="<?= (int) $b['id'] ?>"
-                                                <?= $old['branch_id'] === (int) $b['id'] ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($b['branch_name'], ENT_QUOTES, 'UTF-8') ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="branch_id">
+                                    Branch <span class="text-danger">*</span>
+                                </label>
+                                <select id="branch_id" name="branch_id" class="form-control">
+                                    <option value="">— Select Branch —</option>
+                                    <?php foreach ($branches as $b): ?>
+                                        <option value="<?= (int) $b['id'] ?>"
+                                            <?= $old['branch_id'] === (int) $b['id'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($b['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
 
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="legal_name">
-                                        Legal Name <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" id="legal_name" name="legal_name"
-                                        class="form-control" maxlength="255"
-                                        placeholder="Enter legal name"
-                                        value="<?= htmlspecialchars($old['legal_name'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
+                            <div class="form-group col-md-6">
+                                <label for="legal_name">
+                                    Legal Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="legal_name" name="legal_name"
+                                    class="form-control" maxlength="255"
+                                    placeholder="Enter legal name"
+                                    value="<?= htmlspecialchars($old['legal_name'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="trade_name">Trade Name</label>
+                                <input type="text" id="trade_name" name="trade_name"
+                                    class="form-control" maxlength="255"
+                                    placeholder="Enter trade name"
+                                    value="<?= htmlspecialchars($old['trade_name'], ENT_QUOTES, 'UTF-8') ?>">
                             </div>
 
-                            <div class="col-md-12">
-                                <div class="form-group mb-0">
-                                    <label for="trade_name">Trade Name</label>
-                                    <input type="text" id="trade_name" name="trade_name"
-                                        class="form-control" maxlength="255"
-                                        placeholder="Enter trade name"
-                                        value="<?= htmlspecialchars($old['trade_name'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
+                            <div class="form-group col-md-6">
+                                <label for="phone">Phone</label>
+                                <input type="text" id="phone" name="phone"
+                                    class="form-control" maxlength="15"
+                                    placeholder="Enter phone number"
+                                    value="<?= htmlspecialchars($old['phone'], ENT_QUOTES, 'UTF-8') ?>">
                             </div>
+                        </div>
 
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="text" id="email" name="email"
+                                class="form-control" maxlength="150"
+                                placeholder="Enter email address"
+                                value="<?= htmlspecialchars($old['email'], ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <textarea id="address" name="address" rows="2"
+                                class="form-control" maxlength="500"
+                                placeholder="Enter address"><?= htmlspecialchars($old['address'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-4 mb-md-0">
+                                <label for="city">City</label>
+                                <input type="text" id="city" name="city"
+                                    class="form-control" maxlength="100"
+                                    placeholder="Enter city"
+                                    value="<?= htmlspecialchars($old['city'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                            <div class="form-group col-md-4 mb-md-0">
+                                <label for="state">State</label>
+                                <input type="text" id="state" name="state"
+                                    class="form-control" maxlength="100"
+                                    placeholder="Enter state"
+                                    value="<?= htmlspecialchars($old['state'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                            <div class="form-group col-md-4 mb-0">
+                                <label for="pincode">Pincode</label>
+                                <input type="text" id="pincode" name="pincode"
+                                    class="form-control" maxlength="6"
+                                    placeholder="Enter 6-digit pincode"
+                                    value="<?= htmlspecialchars($old['pincode'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
                         </div>
 
                     </div>
-
-                </div>
-
-                <!-- CONTACT -->
-                <div class="card shadow mb-3">
-
-                    <div class="card-header py-2">
-                        <h6 class="m-0 font-weight-bold text-primary">
-                            <i class="fas fa-address-book mr-1"></i>
-                            Contact Information
-                        </h6>
-                    </div>
-
-                    <div class="card-body">
-
-                        <div class="row">
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="phone">Mobile Number</label>
-                                    <input type="text" id="phone" name="phone"
-                                        class="form-control" maxlength="15"
-                                        placeholder="Enter mobile number"
-                                        value="<?= htmlspecialchars($old['phone'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="email">Email Address</label>
-                                    <input type="text" id="email" name="email"
-                                        class="form-control" maxlength="150"
-                                        placeholder="Enter email address"
-                                        value="<?= htmlspecialchars($old['email'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <!-- ADDRESS -->
-                <div class="card shadow mb-3">
-
-                    <div class="card-header py-2">
-                        <h6 class="m-0 font-weight-bold text-primary">
-                            <i class="fas fa-map-marker-alt mr-1"></i>
-                            Address
-                        </h6>
-                    </div>
-
-                    <div class="card-body">
-
-                        <div class="row">
-
-                            <div class="col-md-12">
-                                <div class="form-group">
-                                    <label for="address">Registered Address</label>
-                                    <textarea id="address" name="address" rows="2"
-                                        class="form-control" maxlength="500"
-                                        placeholder="Enter address"><?= htmlspecialchars($old['address'], ENT_QUOTES, 'UTF-8') ?></textarea>
-                                </div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="city">City / Locality</label>
-                                    <input type="text" id="city" name="city"
-                                        class="form-control" maxlength="100"
-                                        placeholder="Enter city"
-                                        value="<?= htmlspecialchars($old['city'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="state">State</label>
-                                    <input type="text" id="state" name="state"
-                                        class="form-control" maxlength="100"
-                                        placeholder="Enter state"
-                                        value="<?= htmlspecialchars($old['state'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group mb-0">
-                                    <label for="pincode">Pincode</label>
-                                    <input type="text" id="pincode" name="pincode"
-                                        class="form-control" maxlength="6"
-                                        placeholder="Enter 6-digit pincode"
-                                        value="<?= htmlspecialchars($old['pincode'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                        </div>
-
-                    </div>
-
                 </div>
 
                 <!-- ACTION BAR -->
@@ -614,10 +548,8 @@ JS;
 
                     <div>
                         <button type="button" class="btn btn-secondary" id="popupCancelBtn">
-                            <i class="fas fa-times mr-1"></i>
-                            Cancel
+                            <i class="fas fa-times mr-1"></i> Cancel
                         </button>
-
                         <button type="submit" class="btn btn-success" id="saveParty">
                             <i class="fas fa-check mr-1"></i>
                             <?= $isEdit ? 'Update Party' : 'Save Party' ?>
@@ -654,7 +586,7 @@ JS;
     <?php else: ?>
 
         <!-- =========================================================
-         NORMAL MODE — full app chrome (unchanged)
+         NORMAL MODE — full app chrome
          ========================================================= -->
         <div id="wrapper">
 

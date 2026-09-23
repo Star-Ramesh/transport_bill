@@ -560,14 +560,7 @@ $pageTitle = 'Trip ' . $trip['trip_no'] . ' | Billing Portal';
                                                 </span>
                                             </td>
                                         </tr>
-                                        <tr>
-                                            <td class="text-muted small">Distance</td>
-                                            <td class="font-weight-bold">
-                                                <?php if (!empty($trip['distance_km']) && (float) $trip['distance_km'] > 0): ?>
-                                                    <?= number_format((float) $trip['distance_km'], 2) ?> km
-                                                    <?php else: ?>—<?php endif; ?>
-                                            </td>
-                                        </tr>
+
                                         <tr>
                                             <td class="text-muted small">Start Date</td>
                                             <td class="font-weight-bold">

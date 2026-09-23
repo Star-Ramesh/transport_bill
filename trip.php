@@ -1,7 +1,7 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
 requirePermission('trip.create');
 
@@ -82,9 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $driver_id      = (int) ($_POST['driver_id']      ?? 0);
     $from_branch_id = (int) ($_POST['from_branch_id'] ?? 0);
     $to_branch_id   = (int) ($_POST['to_branch_id']   ?? 0);
-    $distance_km    = trim($_POST['distance_km'] ?? '');
     $start_date     = trim($_POST['start_date']  ?? '');
-    $end_date       = trim($_POST['end_date']    ?? '');
     $trip_notes     = trim($_POST['trip_notes']  ?? '');
 
     $party_id       = (int) ($_POST['party_id']       ?? 0);
@@ -123,15 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$d || $d->format('Y-m-d') !== $start_date) {
             $errorList[] = 'Invalid start date.';
         }
-    }
-    if ($end_date !== '') {
-        $d = DateTime::createFromFormat('Y-m-d', $end_date);
-        if (!$d || $d->format('Y-m-d') !== $end_date) {
-            $errorList[] = 'Invalid end date.';
-        }
-    }
-    if ($distance_km !== '' && (!is_numeric($distance_km) || (float) $distance_km < 0)) {
-        $errorList[] = 'Distance must be a positive number.';
     }
 
     if ($party_id <= 0) $errorList[] = 'Please select a party.';
@@ -194,23 +183,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $lorry_v      = $lorry_id  > 0 ? $lorry_id  : "NULL";
         $driver_v     = $driver_id > 0 ? $driver_id : "NULL";
-        $distance_v   = $distance_km !== '' ? "'" . $esc($distance_km) . "'" : "NULL";
-        $end_date_v   = $end_date !== '' ? "'" . $esc($end_date) . "'" : "NULL";
         $trip_notes_v = $trip_notes !== '' ? "'" . $esc($trip_notes) . "'" : "NULL";
         $start_date_v = "'" . $esc($start_date) . "'";
+        $end_date_v   = "NULL";
         $trip_no_v    = "'" . $esc($trip_no) . "'";
         $created_by_v = (int) ($_SESSION['user_id'] ?? 0);
 
         mysqli_begin_transaction($conn);
 
         try {
+            /* Distance has been dropped from the table.
+               End Date is present in the table but always NULL. */
             $sql_trip = "INSERT INTO trip
                             (trip_no, lorry_id, driver_id, from_branch_id, to_branch_id,
-                             distance_km, start_date, end_date, status, notes,
+                             start_date, end_date, status, notes,
                              branch_id, created_by, active)
                          VALUES
                             ($trip_no_v, $lorry_v, $driver_v, $from_branch_id, $to_branch_id,
-                             $distance_v, $start_date_v, $end_date_v, 'Scheduled', $trip_notes_v,
+                             $start_date_v, $end_date_v, 'Scheduled', $trip_notes_v,
                              $from_branch_id, $created_by_v, 1)";
 
             if (!mysqli_query($conn, $sql_trip)) {
@@ -337,7 +327,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #eef2ff;
         }
 
-        /* Input + append button side by side */
         .input-group-tight {
             display: flex;
             flex-wrap: nowrap;
@@ -363,7 +352,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding-right: .65rem;
         }
 
-        /* On mobile, stack input and + New button vertically */
         @media (max-width: 575.98px) {
             .input-group-tight {
                 flex-wrap: wrap;
@@ -402,8 +390,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         #masterModal .modal-body {
-            max-height: 78vh;
-            overflow-y: auto;
+            padding: 0;
+        }
+
+        #masterModalIframe {
+            display: block;
+            width: 100%;
+            height: 78vh;
+            border: 0;
+            background: #fff;
+        }
+
+        @media (max-width: 575.98px) {
+            #masterModalIframe {
+                height: 85vh;
+            }
         }
     </style>
 </head>
@@ -451,7 +452,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="card-body">
                                 <div class="row">
 
-                                    <!-- Lorry (required) -->
+                                    <!-- Lorry -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="lorry_input">Lorry <span class="text-danger">*</span></label>
@@ -488,7 +489,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                     </div>
 
-                                    <!-- Driver (required) -->
+                                    <!-- Driver -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="driver_input">Driver <span class="text-danger">*</span></label>
@@ -525,11 +526,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                     </div>
 
-                                    <!-- From Branch -->
+                                    <!-- From -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="from_branch_input">
-                                                From Branch <span class="text-danger">*</span>
+                                                From <span class="text-danger">*</span>
                                             </label>
                                             <input type="text"
                                                 id="from_branch_input"
@@ -550,11 +551,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                     </div>
 
-                                    <!-- To Branch -->
+                                    <!-- To -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="to_branch_input">
-                                                To Branch <span class="text-danger">*</span>
+                                                To <span class="text-danger">*</span>
                                             </label>
                                             <input type="text"
                                                 id="to_branch_input"
@@ -575,18 +576,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                     </div>
 
-                                    <!-- Distance -->
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label for="distance_km">Distance (km)</label>
-                                            <input type="number" step="0.01" min="0"
-                                                id="distance_km" name="distance_km"
-                                                class="form-control" placeholder="Enter distance">
-                                        </div>
-                                    </div>
-
                                     <!-- Start Date -->
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="start_date">
                                                 Start Date <span class="text-danger">*</span>
@@ -597,22 +588,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                     </div>
 
-                                    <!-- End Date -->
-                                    <div class="col-md-4">
+                                    <!-- Trip Notes -->
+                                    <div class="col-md-6">
                                         <div class="form-group">
-                                            <label for="end_date">End Date</label>
-                                            <input type="date" id="end_date" name="end_date"
-                                                class="form-control">
-                                        </div>
-                                    </div>
-
-                                    <!-- Notes -->
-                                    <div class="col-md-12">
-                                        <div class="form-group mb-0">
                                             <label for="trip_notes">Trip Notes</label>
-                                            <textarea id="trip_notes" name="trip_notes" rows="2"
-                                                class="form-control" maxlength="1000"
-                                                placeholder="Enter any trip-level notes"></textarea>
+                                            <input type="text" id="trip_notes" name="trip_notes"
+                                                class="form-control" maxlength="255"
+                                                placeholder="Optional short trip note">
                                         </div>
                                     </div>
 
@@ -767,9 +749,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <!-- =========================================================
-         MASTER MODAL — AJAX-loaded form for party / lorry / driver
-         ========================================================= -->
+    <!-- Master modal (iframe) -->
     <div class="modal fade" id="masterModal" tabindex="-1" role="dialog"
         aria-labelledby="masterModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
@@ -780,8 +760,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
-                <div class="modal-body p-0" id="masterModalBody">
-                    <!-- Form loaded here via AJAX -->
+                <div class="modal-body">
+                    <iframe id="masterModalIframe" src="about:blank" title="Master form"></iframe>
                 </div>
             </div>
         </div>

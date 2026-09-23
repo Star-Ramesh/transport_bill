@@ -3,6 +3,9 @@
 include 'constant.php';
 include 'session.php';
 
+/* =========================================================
+   DETERMINE MODE
+   ========================================================= */
 $editId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $isEdit = $editId > 0;
 
@@ -18,10 +21,12 @@ requirePermission($isEdit ? 'lorry.edit' : 'lorry.create');
 
 $pageTitle = $isEdit ? 'Edit Lorry | Billing Portal' : 'Add Lorry | Billing Portal';
 
+/* =========================================================
+   FORM STATE
+   ========================================================= */
 $error     = '';
 $errorList = [];
 
-/* Popup result holders */
 $popup_saved_id    = 0;
 $popup_saved_label = '';
 
@@ -38,7 +43,9 @@ $old = [
     'active'       => 1,
 ];
 
-/* LOAD (Edit mode) */
+/* =========================================================
+   LOAD (Edit mode)
+   ========================================================= */
 if ($isEdit) {
 
     $res = mysqli_query($conn, "SELECT * FROM lorry WHERE id = $editId LIMIT 1");
@@ -66,7 +73,9 @@ if ($isEdit) {
     $old['active']       = (int) ($row['active'] ?? 1);
 }
 
-/* Branch dropdown */
+/* =========================================================
+   BRANCH DROPDOWN
+   ========================================================= */
 $branches = [];
 $resB = mysqli_query(
     $conn,
@@ -78,7 +87,9 @@ if ($resB) {
     }
 }
 
-/* SUBMIT */
+/* =========================================================
+   SUBMIT
+   ========================================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['popup_mode']) && (int) $_POST['popup_mode'] === 1) {
@@ -214,7 +225,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-/* Popup postMessage */
+/* =========================================================
+   POPUP MODE — postMessage on success
+   ========================================================= */
 $popupPostScript = '';
 if ($isPopup && $popup_saved_id > 0) {
     $safeId    = (int) $popup_saved_id;
@@ -286,118 +299,102 @@ JS;
                 <input type="hidden" name="return_to" value="<?= htmlspecialchars($return_to, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="popup_mode" value="1">
 
-                <div class="card shadow mb-3">
+                <div class="card shadow-sm mb-3">
                     <div class="card-header py-2">
                         <h6 class="m-0 font-weight-bold text-primary">
                             <i class="fas fa-truck mr-1"></i> Lorry Details
                         </h6>
                     </div>
                     <div class="card-body">
-                        <div class="row">
 
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="branch_id">Branch <span class="text-danger">*</span></label>
-                                    <select id="branch_id" name="branch_id" class="form-control">
-                                        <option value="">— Select Branch —</option>
-                                        <?php foreach ($branches as $b): ?>
-                                            <option value="<?= (int) $b['id'] ?>"
-                                                <?= $old['branch_id'] === (int) $b['id'] ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($b['branch_name'], ENT_QUOTES, 'UTF-8') ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="branch_id">Branch <span class="text-danger">*</span></label>
+                                <select id="branch_id" name="branch_id" class="form-control">
+                                    <option value="">— Select Branch —</option>
+                                    <?php foreach ($branches as $b): ?>
+                                        <option value="<?= (int) $b['id'] ?>"
+                                            <?= $old['branch_id'] === (int) $b['id'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($b['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
 
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="lorry_number">Lorry Number <span class="text-danger">*</span></label>
-                                    <input type="text" id="lorry_number" name="lorry_number"
-                                        class="form-control text-uppercase" maxlength="15"
-                                        placeholder="Enter lorry number"
-                                        value="<?= htmlspecialchars($old['lorry_number'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
+                            <div class="form-group col-md-6">
+                                <label for="lorry_number">Lorry Number <span class="text-danger">*</span></label>
+                                <input type="text" id="lorry_number" name="lorry_number"
+                                    class="form-control text-uppercase" maxlength="15"
+                                    placeholder="Enter lorry number"
+                                    value="<?= htmlspecialchars($old['lorry_number'], ENT_QUOTES, 'UTF-8') ?>">
                             </div>
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="lorry_type">Lorry Type</label>
-                                    <select id="lorry_type" name="lorry_type" class="form-control">
-                                        <option value="">— Select —</option>
-                                        <?php
-                                        $types = ['Open', 'Container', 'Trailer', 'Tanker', 'Flatbed', 'Refrigerated', 'Other'];
-                                        foreach ($types as $t):
-                                        ?>
-                                            <option value="<?= $t ?>" <?= $old['lorry_type'] === $t ? 'selected' : '' ?>>
-                                                <?= $t ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="capacity">Capacity</label>
-                                    <input type="text" id="capacity" name="capacity"
-                                        class="form-control" maxlength="15"
-                                        placeholder="Enter capacity"
-                                        value="<?= htmlspecialchars($old['capacity'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="owner_name">Owner Name</label>
-                                    <input type="text" id="owner_name" name="owner_name"
-                                        class="form-control" maxlength="100"
-                                        placeholder="Enter owner name"
-                                        value="<?= htmlspecialchars($old['owner_name'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="address">Address</label>
-                                    <input type="text" id="address" name="address"
-                                        class="form-control" maxlength="255"
-                                        placeholder="Enter address"
-                                        value="<?= htmlspecialchars($old['address'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="city">City</label>
-                                    <input type="text" id="city" name="city"
-                                        class="form-control" maxlength="50"
-                                        placeholder="Enter city"
-                                        value="<?= htmlspecialchars($old['city'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="state">State</label>
-                                    <input type="text" id="state" name="state"
-                                        class="form-control" maxlength="50"
-                                        placeholder="Enter state"
-                                        value="<?= htmlspecialchars($old['state'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group mb-0">
-                                    <label for="pincode">Pincode</label>
-                                    <input type="text" id="pincode" name="pincode"
-                                        class="form-control" maxlength="6"
-                                        placeholder="Enter 6-digit pincode"
-                                        value="<?= htmlspecialchars($old['pincode'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                            </div>
-
                         </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="lorry_type">Lorry Type</label>
+                                <select id="lorry_type" name="lorry_type" class="form-control">
+                                    <option value="">— Select —</option>
+                                    <?php
+                                    $types = ['Open', 'Container', 'Trailer', 'Tanker', 'Flatbed', 'Refrigerated', 'Other'];
+                                    foreach ($types as $t):
+                                    ?>
+                                        <option value="<?= $t ?>" <?= $old['lorry_type'] === $t ? 'selected' : '' ?>>
+                                            <?= $t ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="form-group col-md-6">
+                                <label for="capacity">Capacity</label>
+                                <input type="text" id="capacity" name="capacity"
+                                    class="form-control" maxlength="15"
+                                    placeholder="Enter capacity"
+                                    value="<?= htmlspecialchars($old['capacity'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="owner_name">Owner Name</label>
+                            <input type="text" id="owner_name" name="owner_name"
+                                class="form-control" maxlength="100"
+                                placeholder="Enter owner name"
+                                value="<?= htmlspecialchars($old['owner_name'], ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <input type="text" id="address" name="address"
+                                class="form-control" maxlength="255"
+                                placeholder="Enter address"
+                                value="<?= htmlspecialchars($old['address'], ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-4 mb-md-0">
+                                <label for="city">City</label>
+                                <input type="text" id="city" name="city"
+                                    class="form-control" maxlength="50"
+                                    placeholder="Enter city"
+                                    value="<?= htmlspecialchars($old['city'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                            <div class="form-group col-md-4 mb-md-0">
+                                <label for="state">State</label>
+                                <input type="text" id="state" name="state"
+                                    class="form-control" maxlength="50"
+                                    placeholder="Enter state"
+                                    value="<?= htmlspecialchars($old['state'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                            <div class="form-group col-md-4 mb-0">
+                                <label for="pincode">Pincode</label>
+                                <input type="text" id="pincode" name="pincode"
+                                    class="form-control" maxlength="6"
+                                    placeholder="Enter 6-digit pincode"
+                                    value="<?= htmlspecialchars($old['pincode'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -441,7 +438,6 @@ JS;
 
     <?php else: ?>
 
-        <!-- NORMAL MODE — unchanged -->
         <div id="wrapper">
             <?php include 'layout/sidebar.php'; ?>
             <div id="content-wrapper" class="d-flex flex-column">
@@ -606,6 +602,7 @@ JS;
                                                 <i class="fas fa-redo mr-1"></i>Clear
                                             </a>
                                         <?php endif; ?>
+
                                         <button type="submit" class="btn btn-success">
                                             <i class="fas fa-check mr-1"></i>
                                             <?= $isEdit ? 'Update Lorry' : 'Save Lorry' ?>
