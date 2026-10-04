@@ -1,9 +1,9 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
-requirePermission('vendor.view');
+requirePermission('consignment.view');
 
 /* =========================================================
    AJAX — toggle active
@@ -12,50 +12,39 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
 
     header('Content-Type: application/json');
 
-    if (!hasPermission('vendor.delete')) {
+    if (!hasPermission('consignment.delete')) {
         echo json_encode(['success' => false, 'message' => 'Permission denied.']);
         exit;
     }
 
     $id = (int) ($_POST['id'] ?? 0);
-
     if ($id <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Invalid vendor ID.']);
+        echo json_encode(['success' => false, 'message' => 'Invalid ID.']);
         exit;
     }
 
     $branchFilter = '';
-    if (!isAdmin()) {
+    if (!hasPermission('trip.view.all')) {
         $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-        $branchFilter = " AND branch_id = $myBranch";
+        $branchFilter = $myBranch > 0 ? " AND branch_id = $myBranch" : " AND 1=0";
     }
 
-    $check = mysqli_query(
-        $conn,
-        "SELECT id, vendor_name, active FROM vendor
-         WHERE id = $id $branchFilter LIMIT 1"
-    );
-
+    $check = mysqli_query($conn, "SELECT id, consignment_no, active FROM consignment WHERE id = $id $branchFilter LIMIT 1");
     if (!$check || mysqli_num_rows($check) !== 1) {
-        echo json_encode(['success' => false, 'message' => 'Vendor not found.']);
+        echo json_encode(['success' => false, 'message' => 'Consignment not found.']);
         exit;
     }
 
     $row = mysqli_fetch_assoc($check);
     $new = ((int) $row['active'] === 1) ? 0 : 1;
 
-    $upd = mysqli_query($conn, "UPDATE vendor SET active = $new WHERE id = $id");
-
+    $upd = mysqli_query($conn, "UPDATE consignment SET active = $new WHERE id = $id");
     if (!$upd) {
         echo json_encode(['success' => false, 'message' => mysqli_error($conn)]);
         exit;
     }
 
-    echo json_encode([
-        'success' => true,
-        'id'      => $id,
-        'active'  => $new,
-    ]);
+    echo json_encode(['success' => true, 'id' => $id, 'active' => $new]);
     exit;
 }
 
@@ -66,40 +55,82 @@ $flash = '';
 if (isset($_GET['msg'])) {
     switch ($_GET['msg']) {
         case 'added':
-            $flash = 'Vendor added successfully.';
+            $flash = 'Consignment added successfully.';
             break;
         case 'updated':
-            $flash = 'Vendor updated successfully.';
+            $flash = 'Consignment updated successfully.';
             break;
     }
 }
 
 /* =========================================================
-   DATA
+   PAGE DATA
    ========================================================= */
-$pageTitle = 'Vendors | Billing Portal';
+$pageTitle = 'Consignments | Billing Portal';
+
+$canSeeAll = hasPermission('trip.view.all');
+$myBranch  = (int) ($_SESSION['branch_id'] ?? 0);
 
 $where = '';
-if (!isAdmin()) {
-    $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-    $where = "WHERE v.branch_id = $myBranch";
+if (!$canSeeAll) {
+    $where = $myBranch > 0 ? "WHERE branch_id = $myBranch" : "WHERE 1=0";
 }
 
-$sql = "SELECT v.id, v.branch_id, v.vendor_name, v.vendor_type,
-               v.phone, v.address, v.active, v.created_at,
-               b.branch_name
-        FROM vendor v
-        LEFT JOIN branch b ON b.id = v.branch_id
+/* Single-table SELECT */
+$sql = "SELECT id, consignment_no, consignment_date,
+               consignor_party_id, consignee_party_id,
+               notes, branch_id, created_by, active, created_at
+        FROM consignment
         $where
-        ORDER BY v.id DESC";
+        ORDER BY id DESC";
 
 $result = mysqli_query($conn, $sql);
 if (!$result) die("Query failed: " . mysqli_error($conn));
 
-$vendors = [];
+$consignments = [];
 while ($row = mysqli_fetch_assoc($result)) {
-    $vendors[] = $row;
+    $consignments[] = $row;
 }
+
+/* Enrich — party names */
+$partyNames = [];
+$resP = mysqli_query($conn, "SELECT id, legal_name FROM party");
+if ($resP) while ($p = mysqli_fetch_assoc($resP)) $partyNames[(int)$p['id']] = $p['legal_name'];
+
+/* Enrich — user names */
+$userNames = [];
+$resU = mysqli_query($conn, "SELECT id, full_name, username FROM `user`");
+if ($resU) {
+    while ($u = mysqli_fetch_assoc($resU)) {
+        $userNames[(int)$u['id']] = $u['full_name'] ?: $u['username'];
+    }
+}
+
+/* Enrich — item counts + totals per consignment */
+$itemCounts = [];
+$totals     = [];
+
+$resI = mysqli_query($conn, "SELECT consignment_id, COUNT(*) AS cnt, COALESCE(SUM(amount),0) AS total FROM consignment_inventory WHERE active = 1 GROUP BY consignment_id");
+if ($resI) {
+    while ($i = mysqli_fetch_assoc($resI)) {
+        $itemCounts[(int)$i['consignment_id']] = (int)$i['cnt'];
+        $totals[(int)$i['consignment_id']]     = (float)$i['total'];
+    }
+}
+
+foreach ($consignments as &$c) {
+    $sid = (int) $c['consignor_party_id'];
+    $rid = (int) $c['consignee_party_id'];
+    $uid = (int) $c['created_by'];
+    $cid = (int) $c['id'];
+
+    $c['consignor_name'] = $sid > 0 ? ($partyNames[$sid] ?? '') : '';
+    $c['consignee_name'] = $rid > 0 ? ($partyNames[$rid] ?? '') : '';
+    $c['created_by_name'] = $uid > 0 ? ($userNames[$uid] ?? '') : '';
+    $c['item_count']     = $itemCounts[$cid] ?? 0;
+    $c['total_amount']   = $totals[$cid] ?? 0;
+}
+unset($c);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -127,11 +158,9 @@ while ($row = mysqli_fetch_assoc($result)) {
             background-color: #fbd9d4 !important;
         }
 
-        #vendorsTable {
-            font-size: 0.95rem;
-        }
+        #consignmentsTable { font-size: 0.95rem; }
 
-        #vendorsTable thead th {
+        #consignmentsTable thead th {
             font-size: 0.78rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -142,59 +171,82 @@ while ($row = mysqli_fetch_assoc($result)) {
             white-space: nowrap;
         }
 
-        #vendorsTable tbody td {
+        #consignmentsTable tbody td {
             padding: 0.9rem 0.9rem;
             vertical-align: middle;
             color: #3a3b45;
             white-space: nowrap;
         }
 
-        #vendorsTable tbody tr:hover>td {
+        #consignmentsTable tbody tr:hover>td {
             background-color: #f7f9fc;
         }
 
-        .vendor-name {
-            font-size: 1.02rem;
+        .consignment-no {
+            font-size: 0.95rem;
             font-weight: 700;
             color: #2c2e3e;
-        }
-
-        .vendor-type-badge {
-            display: inline-block;
-            padding: 0.25rem 0.65rem;
-            border-radius: 0.35rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            background-color: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeeba;
-        }
-
-        .branch-badge {
-            display: inline-block;
-            padding: 0.25rem 0.65rem;
-            border-radius: 0.35rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            background-color: #e8fbf4;
-            color: #0c7d5b;
-            border: 1px solid #c5f0e1;
-        }
-
-        .contact-cell a {
-            color: inherit;
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+            letter-spacing: 0.02em;
             text-decoration: none;
         }
 
-        .contact-cell a:hover {
+        .consignment-no:hover {
             color: #4e73df;
             text-decoration: underline;
         }
 
-        .address-cell {
-            max-width: 250px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .route-cell { font-size: .88rem; color: #3a3b45; }
+
+        .route-arrow { color: #b7b9cc; margin: 0 .35rem; }
+
+        .party-chip {
+            display: inline-block;
+            padding: .18rem .55rem;
+            border-radius: 4px;
+            font-size: .78rem;
+            font-weight: 600;
+            background: #eef2ff;
+            color: #3f51b5;
+            border: 1px solid #dbe2ff;
+        }
+
+        .party-chip.to {
+            background: #e8fbf4;
+            color: #0c7d5b;
+            border-color: #c5f0e1;
+        }
+
+        .amount-cell {
+            text-align: right;
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+            font-weight: 700;
+            color: #2c2e3e;
+            font-size: .92rem;
+        }
+
+        .created-by-badge {
+            display: inline-block;
+            padding: 0.2rem 0.55rem;
+            border-radius: 5px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            background-color: #f5f7fb;
+            color: #5a5c69;
+            border: 1px solid #e6e9f0;
+        }
+
+        .item-count-badge {
+            display: inline-block;
+            padding: .15rem .5rem;
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 700;
+            background: #f5f7fb;
+            color: #5a5c69;
+            border: 1px solid #e6e9f0;
+            min-width: 30px;
+            text-align: center;
         }
 
         .switch {
@@ -206,19 +258,12 @@ while ($row = mysqli_fetch_assoc($result)) {
             vertical-align: middle;
         }
 
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
+        .switch input { opacity: 0; width: 0; height: 0; }
 
         .switch .slider {
             position: absolute;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background-color: #b7b9cc;
             transition: .2s;
             border-radius: 22px;
@@ -227,27 +272,16 @@ while ($row = mysqli_fetch_assoc($result)) {
         .switch .slider:before {
             position: absolute;
             content: "";
-            height: 16px;
-            width: 16px;
-            left: 3px;
-            bottom: 3px;
+            height: 16px; width: 16px;
+            left: 3px; bottom: 3px;
             background-color: white;
             transition: .2s;
             border-radius: 50%;
         }
 
-        .switch input:checked+.slider {
-            background-color: #1cc88a;
-        }
-
-        .switch input:checked+.slider:before {
-            transform: translateX(22px);
-        }
-
-        .switch input:disabled+.slider {
-            opacity: .6;
-            cursor: not-allowed;
-        }
+        .switch input:checked+.slider { background-color: #1cc88a; }
+        .switch input:checked+.slider:before { transform: translateX(22px); }
+        .switch input:disabled+.slider { opacity: .6; cursor: not-allowed; }
 
         #activeFilter .nav-link {
             padding: .35rem 1rem;
@@ -263,19 +297,20 @@ while ($row = mysqli_fetch_assoc($result)) {
             font-weight: 600;
         }
 
-        .dataTables_wrapper .dataTables_filter input {
+        .dataTables_wrapper .dataTables_filter input,
+        .dataTables_wrapper .dataTables_length select {
             border: 1px solid #d1d3e2;
             border-radius: .35rem;
-            padding: .35rem .6rem;
             font-size: .9rem;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            padding: .35rem .6rem;
             margin-left: .5rem;
         }
 
         .dataTables_wrapper .dataTables_length select {
-            border: 1px solid #d1d3e2;
-            border-radius: .35rem;
             padding: .35rem 1.5rem .35rem .6rem;
-            font-size: .9rem;
         }
 
         .dataTables_wrapper .dataTables_paginate .paginate_button.current {
@@ -311,14 +346,14 @@ while ($row = mysqli_fetch_assoc($result)) {
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">
-                            <i class="fas fa-store mr-2"></i>Vendors
+                            <i class="fas fa-file-alt mr-2"></i>Consignments
                         </h1>
 
-                        <?php if (hasPermission('vendor.create')): ?>
-                            <a href="vendor.php"
+                        <?php if (hasPermission('consignment.create')): ?>
+                            <a href="consignment.php"
                                 class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-plus fa-sm text-white-50 mr-1"></i>
-                                Add Vendor
+                                Add Consignment
                             </a>
                         <?php endif; ?>
                     </div>
@@ -338,8 +373,8 @@ while ($row = mysqli_fetch_assoc($result)) {
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-list mr-1"></i>
-                                All Vendors
-                                <?php if (!isAdmin()): ?>
+                                All Consignments
+                                <?php if (!$canSeeAll): ?>
                                     <span class="text-muted small ml-1">(your branch)</span>
                                 <?php endif; ?>
                             </h6>
@@ -362,24 +397,25 @@ while ($row = mysqli_fetch_assoc($result)) {
                             <div class="table-responsive">
 
                                 <table class="table table-bordered table-hover"
-                                    id="vendorsTable"
+                                    id="consignmentsTable"
                                     width="100%"
                                     cellspacing="0">
 
                                     <thead class="thead-light">
                                         <tr>
                                             <th width="50">#</th>
-                                            <th>Vendor Name</th>
-                                            <th>Type</th>
-                                            <th>Phone</th>
-                                            <th>Address</th>
-                                            <th>Branch</th>
+                                            <th>Consignment No</th>
+                                            <th>Date</th>
+                                            <th>Route</th>
+                                            <th class="text-center">Items</th>
+                                            <th class="text-right">Total</th>
+                                            <th>Created By</th>
                                             <th width="140" class="text-center">Action</th>
                                         </tr>
                                     </thead>
 
                                     <tbody>
-                                        <?php foreach ($vendors as $i => $row):
+                                        <?php foreach ($consignments as $i => $row):
                                             $isActive = ((int) $row['active'] === 1);
                                         ?>
                                             <tr
@@ -392,45 +428,41 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <span class="vendor-name">
-                                                        <?= htmlspecialchars($row['vendor_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <a href="consignment-print.php?id=<?= (int) $row['id'] ?>"
+                                                        target="_blank"
+                                                        class="consignment-no">
+                                                        <?= htmlspecialchars($row['consignment_no'], ENT_QUOTES, 'UTF-8') ?>
+                                                    </a>
+                                                </td>
+
+                                                <td class="align-middle small text-nowrap">
+                                                    <?= date('d M Y', strtotime($row['consignment_date'])) ?>
+                                                </td>
+
+                                                <td class="align-middle route-cell">
+                                                    <span class="party-chip">
+                                                        <?= htmlspecialchars($row['consignor_name'] ?: '—', ENT_QUOTES, 'UTF-8') ?>
+                                                    </span>
+                                                    <i class="fas fa-arrow-right route-arrow"></i>
+                                                    <span class="party-chip to">
+                                                        <?= htmlspecialchars($row['consignee_name'] ?: '—', ENT_QUOTES, 'UTF-8') ?>
                                                     </span>
                                                 </td>
 
-                                                <td class="align-middle">
-                                                    <?php if (!empty($row['vendor_type'])): ?>
-                                                        <span class="vendor-type-badge">
-                                                            <?= htmlspecialchars($row['vendor_type'], ENT_QUOTES, 'UTF-8') ?>
-                                                        </span>
-                                                    <?php else: ?>
-                                                        <span class="text-muted">—</span>
-                                                    <?php endif; ?>
+                                                <td class="align-middle text-center">
+                                                    <span class="item-count-badge">
+                                                        <?= (int) $row['item_count'] ?>
+                                                    </span>
                                                 </td>
 
-                                                <td class="align-middle small contact-cell">
-                                                    <?php if (!empty($row['phone'])): ?>
-                                                        <i class="fas fa-phone fa-xs text-gray-500 mr-1"></i>
-                                                        <a href="tel:<?= htmlspecialchars($row['phone'], ENT_QUOTES, 'UTF-8') ?>">
-                                                            <?= htmlspecialchars($row['phone'], ENT_QUOTES, 'UTF-8') ?>
-                                                        </a>
-                                                    <?php else: ?>
-                                                        <span class="text-muted">—</span>
-                                                    <?php endif; ?>
-                                                </td>
-
-                                                <td class="align-middle small address-cell"
-                                                    title="<?= htmlspecialchars($row['address'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                                                    <?php if (!empty($row['address'])): ?>
-                                                        <?= htmlspecialchars($row['address'], ENT_QUOTES, 'UTF-8') ?>
-                                                    <?php else: ?>
-                                                        <span class="text-muted">—</span>
-                                                    <?php endif; ?>
+                                                <td class="align-middle amount-cell">
+                                                    ₹ <?= number_format((float) $row['total_amount'], 2) ?>
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <?php if (!empty($row['branch_name'])): ?>
-                                                        <span class="branch-badge">
-                                                            <?= htmlspecialchars($row['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <?php if (!empty($row['created_by_name'])): ?>
+                                                        <span class="created-by-badge">
+                                                            <?= htmlspecialchars($row['created_by_name'], ENT_QUOTES, 'UTF-8') ?>
                                                         </span>
                                                     <?php else: ?>
                                                         <span class="text-muted small">—</span>
@@ -438,28 +470,33 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle text-center text-nowrap">
-                                                    <div class="table-actions">
+                                                    <div class="table-actions d-inline-flex align-items-center" style="gap: 6px;">
 
-                                                        <?php if (hasPermission('vendor.edit')): ?>
-                                                            <a href="vendor.php?id=<?= (int) $row['id'] ?>"
+                                                        <a href="consignment-print.php?id=<?= (int) $row['id'] ?>"
+                                                            target="_blank"
+                                                            class="btn btn-sm btn-secondary"
+                                                            title="View / Print">
+                                                            <i class="fas fa-print"></i>
+                                                        </a>
+
+                                                        <?php if (hasPermission('consignment.edit')): ?>
+                                                            <a href="consignment.php?id=<?= (int) $row['id'] ?>"
                                                                 class="btn btn-sm btn-primary"
-                                                                title="Edit vendor">
+                                                                title="Edit">
                                                                 <i class="fas fa-pen"></i>
                                                             </a>
                                                         <?php endif; ?>
 
-                                                        <?php if (hasPermission('vendor.delete')): ?>
+                                                        <?php if (hasPermission('consignment.delete')): ?>
                                                             <label class="switch mb-0"
                                                                 title="<?= $isActive ? 'Mark as Inactive' : 'Mark as Active' ?>">
-                                                                <input
-                                                                    type="checkbox"
+                                                                <input type="checkbox"
                                                                     class="js-toggle-active"
                                                                     data-id="<?= (int) $row['id'] ?>"
                                                                     <?= $isActive ? 'checked' : '' ?>>
                                                                 <span class="slider"></span>
                                                             </label>
                                                         <?php endif; ?>
-
                                                     </div>
                                                 </td>
 
@@ -491,9 +528,9 @@ while ($row = mysqli_fetch_assoc($result)) {
     <script>
         $(function() {
 
-            var table = $('#vendorsTable').DataTable({
+            var table = $('#consignmentsTable').DataTable({
                 order: [
-                    [0, 'asc']
+                    [0, 'desc']
                 ],
                 pageLength: 10,
                 lengthMenu: [
@@ -502,16 +539,16 @@ while ($row = mysqli_fetch_assoc($result)) {
                 ],
                 columnDefs: [{
                     orderable: false,
-                    targets: [6]
+                    targets: [4, 7]
                 }],
                 language: {
                     search: '',
-                    searchPlaceholder: 'Search vendors...',
+                    searchPlaceholder: 'Search consignments...',
                     lengthMenu: 'Show _MENU_',
                     info: 'Showing _START_ to _END_ of _TOTAL_',
-                    infoEmpty: 'No vendors',
+                    infoEmpty: 'No consignments',
                     infoFiltered: '(filtered from _MAX_)',
-                    zeroRecords: 'No matching vendors found',
+                    zeroRecords: 'No matching consignments found',
                     paginate: {
                         previous: '<i class="fas fa-chevron-left"></i>',
                         next: '<i class="fas fa-chevron-right"></i>'
@@ -548,29 +585,23 @@ while ($row = mysqli_fetch_assoc($result)) {
                 $cb.prop('disabled', true);
 
                 $.ajax({
-                        url: 'vendors-list.php?action=toggle_active',
+                        url: 'consignments-list.php?action=toggle_active',
                         type: 'POST',
                         dataType: 'json',
-                        data: {
-                            id: id
-                        }
+                        data: { id: id }
                     })
                     .done(function(res) {
-
                         if (!res.success) {
                             $cb.prop('checked', !isNow);
                             if (res.message) alert(res.message);
                             return;
                         }
-
                         $row.attr('data-active', res.active);
-
                         if (res.active === 1) {
                             $row.removeClass('row-inactive');
                         } else {
                             $row.addClass('row-inactive');
                         }
-
                         table.draw(false);
                     })
                     .fail(function() {
@@ -579,9 +610,7 @@ while ($row = mysqli_fetch_assoc($result)) {
                     .always(function() {
                         $cb.prop('disabled', false);
                     });
-
             });
-
         });
     </script>
 

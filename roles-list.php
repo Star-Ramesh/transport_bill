@@ -133,7 +133,7 @@ $totalAll = (int) mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c F
 
                         <?php if (hasPermission('role.create')): ?>
                             <a href="role.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-plus fa-sm text-white-50 mr-1"></i>
                                 Add Role
                             </a>

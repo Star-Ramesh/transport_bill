@@ -1,12 +1,15 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
 requirePermission('trip.view');
 
 /* =========================================================
-   AJAX — toggle active
+   AJAX — toggle active (with stock restore / re-deduct)
+   ---------------------------------------------------------
+   No JOINs: we gather trip_party ids first, then gather the
+   trip_inventory rows for those ids.
    ========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
 
@@ -24,14 +27,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
         exit;
     }
 
-    /* Branch restriction — only for users without trip.view.all */
     $branchFilter = '';
     if (!hasPermission('trip.view.all')) {
         $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
         if ($myBranch > 0) {
-            $branchFilter = " AND (branch_id = $myBranch
-                                OR from_branch_id = $myBranch
-                                OR to_branch_id   = $myBranch)";
+            $branchFilter = " AND branch_id = $myBranch";
         } else {
             $branchFilter = " AND 1=0";
         }
@@ -48,18 +48,68 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
         exit;
     }
 
-    $row = mysqli_fetch_assoc($check);
-    $new = ((int) $row['active'] === 1) ? 0 : 1;
+    $row     = mysqli_fetch_assoc($check);
+    $current = (int) $row['active'];
+    $new     = $current === 1 ? 0 : 1;
 
-    $upd = mysqli_query($conn, "UPDATE trip SET active = $new WHERE id = $id");
+    mysqli_begin_transaction($conn);
 
-    if (!$upd) {
-        echo json_encode(['success' => false, 'message' => mysqli_error($conn)]);
+    try {
+        /* 1) Gather trip_party ids for this trip (single-table) */
+        $tpIds = [];
+        $resTP = mysqli_query($conn, "SELECT id FROM trip_party WHERE trip_id = $id");
+        if ($resTP) {
+            while ($tp = mysqli_fetch_assoc($resTP)) {
+                $tpIds[] = (int) $tp['id'];
+            }
+        }
+
+        /* 2) Gather trip_inventory rows for those ids (single-table) */
+        if (!empty($tpIds)) {
+            $inList = implode(',', $tpIds);
+
+            $resItems = mysqli_query(
+                $conn,
+                "SELECT inventory_id, quantity
+                 FROM trip_inventory
+                 WHERE trip_party_id IN ($inList)
+                   AND inventory_id IS NOT NULL
+                   AND inventory_id > 0
+                   AND active = 1"
+            );
+
+            if ($resItems) {
+                $op = ($new === 0) ? '+' : '-';
+
+                while ($it = mysqli_fetch_assoc($resItems)) {
+                    $invId = (int) $it['inventory_id'];
+                    $qty   = (int) $it['quantity'];
+                    if ($invId <= 0 || $qty <= 0) continue;
+
+                    $sqlStock = "UPDATE inventory
+                                 SET stock_qty = stock_qty $op $qty
+                                 WHERE id = $invId";
+
+                    if (!mysqli_query($conn, $sqlStock)) {
+                        throw new Exception('Failed to update stock: ' . mysqli_error($conn));
+                    }
+                }
+            }
+        }
+
+        if (!mysqli_query($conn, "UPDATE trip SET active = $new WHERE id = $id")) {
+            throw new Exception('Failed to update trip: ' . mysqli_error($conn));
+        }
+
+        mysqli_commit($conn);
+
+        echo json_encode(['success' => true, 'id' => $id, 'active' => $new]);
+        exit;
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         exit;
     }
-
-    echo json_encode(['success' => true, 'id' => $id, 'active' => $new]);
-    exit;
 }
 
 /* =========================================================
@@ -82,64 +132,58 @@ if (isset($_GET['msg'])) {
    ========================================================= */
 $pageTitle = 'Trips | Billing Portal';
 
-/* Branch restriction:
-   - Admin OR anyone with trip.view.all  →  sees everything
-   - Otherwise                            →  only trips touching their branch */
 $restrictedToBranch = !hasPermission('trip.view.all');
 
 $where = '';
 if ($restrictedToBranch) {
     $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
     if ($myBranch > 0) {
-        $where = "WHERE (
-                    t.branch_id      = $myBranch
-                 OR t.from_branch_id = $myBranch
-                 OR t.to_branch_id   = $myBranch
-                 )";
+        $where = "WHERE branch_id = $myBranch";
     } else {
         $where = "WHERE 1=0";
     }
 }
 
-$sql = "SELECT
-            t.id, t.trip_no, t.start_date, t.status, t.active,
-            l.lorry_number,
-            d.driver_name,
-            bf.branch_name AS from_branch_name,
-            bf.branch_code AS from_branch_code,
-            bt.branch_name AS to_branch_name,
-            bt.branch_code AS to_branch_code
-        FROM trip t
-        LEFT JOIN lorry  l  ON l.id  = t.lorry_id
-        LEFT JOIN driver d  ON d.id  = t.driver_id
-        LEFT JOIN branch bf ON bf.id = t.from_branch_id
-        LEFT JOIN branch bt ON bt.id = t.to_branch_id
+/* Single-table SELECT — no alias, no JOINs */
+$sql = "SELECT id, trip_no, source, destination, lorry_id, driver_id,
+               start_date, status, branch_id, created_at, active
+        FROM trip
         $where
-        ORDER BY t.id DESC";
+        ORDER BY created_at DESC, id DESC";
 
 $result = mysqli_query($conn, $sql);
 if (!$result) die("Query failed: " . mysqli_error($conn));
 
+/* Build lookup tables for names — one simple query each */
+$lorryNames = [];
+$res = mysqli_query($conn, "SELECT id, lorry_number FROM lorry");
+if ($res) while ($r = mysqli_fetch_assoc($res)) $lorryNames[(int)$r['id']] = $r['lorry_number'];
+
+$driverNames = [];
+$res = mysqli_query($conn, "SELECT id, driver_name FROM driver");
+if ($res) while ($r = mysqli_fetch_assoc($res)) $driverNames[(int)$r['id']] = $r['driver_name'];
+
+$branchNames = [];
+$res = mysqli_query($conn, "SELECT id, branch_name FROM branch");
+if ($res) while ($r = mysqli_fetch_assoc($res)) $branchNames[(int)$r['id']] = $r['branch_name'];
+
 $trips = [];
 while ($row = mysqli_fetch_assoc($result)) {
+    $row['lorry_number']  = $lorryNames[(int)$row['lorry_id']]   ?? '';
+    $row['driver_name']   = $driverNames[(int)$row['driver_id']] ?? '';
+    $row['branch_name']   = $branchNames[(int)$row['branch_id']] ?? '';
     $trips[] = $row;
 }
 
 function statusBadgeClass($status)
 {
     switch ($status) {
-        case 'Scheduled':
-            return 'badge-secondary';
-        case 'In Progress':
-            return 'badge-info';
-        case 'Delivered':
-            return 'badge-primary';
-        case 'Billed':
-            return 'badge-warning';
-        case 'Paid':
-            return 'badge-success';
-        default:
-            return 'badge-secondary';
+        case 'Scheduled':   return 'badge-secondary';
+        case 'In Progress': return 'badge-info';
+        case 'Delivered':   return 'badge-primary';
+        case 'Billed':      return 'badge-warning';
+        case 'Paid':        return 'badge-success';
+        default:            return 'badge-secondary';
     }
 }
 ?>
@@ -147,18 +191,12 @@ function statusBadgeClass($status)
 <html lang="en">
 
 <head>
-
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
     <title><?= $pageTitle ?></title>
-
     <?php include 'layout/header.php'; ?>
-
-    <link rel="stylesheet"
-        href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
-
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
     <style>
         table.dataTable tbody tr.row-inactive>td {
             background-color: #fdecea !important;
@@ -169,9 +207,7 @@ function statusBadgeClass($status)
             background-color: #fbd9d4 !important;
         }
 
-        #tripsTable {
-            font-size: 0.95rem;
-        }
+        #tripsTable { font-size: 0.95rem; }
 
         #tripsTable thead th {
             font-size: 0.78rem;
@@ -191,9 +227,7 @@ function statusBadgeClass($status)
             white-space: nowrap;
         }
 
-        #tripsTable tbody tr:hover>td {
-            background-color: #f7f9fc;
-        }
+        #tripsTable tbody tr:hover>td { background-color: #f7f9fc; }
 
         .trip-no {
             font-size: 0.95rem;
@@ -203,32 +237,19 @@ function statusBadgeClass($status)
             letter-spacing: 0.02em;
         }
 
-        .route-cell {
-            font-size: 0.88rem;
-            color: #3a3b45;
-        }
+        .route-cell { font-size: 0.88rem; color: #3a3b45; }
 
-        .route-arrow {
-            color: #b7b9cc;
-            margin: 0 .25rem;
-        }
+        .route-arrow { color: #b7b9cc; margin: 0 .25rem; }
 
-        .branch-badge {
+        .city-badge {
             display: inline-block;
             padding: 0.25rem 0.6rem;
             border-radius: 0.3rem;
             font-size: 0.8rem;
             font-weight: 600;
-            background-color: #e8fbf4;
-            color: #0c7d5b;
-            border: 1px solid #c5f0e1;
-        }
-
-        .branch-code-mini {
-            font-size: 0.72rem;
-            font-weight: 500;
-            color: #6e707e;
-            margin-left: 2px;
+            background-color: #eef2ff;
+            color: #3f51b5;
+            border: 1px solid #dbe2ff;
         }
 
         .status-badge {
@@ -249,19 +270,12 @@ function statusBadgeClass($status)
             vertical-align: middle;
         }
 
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
+        .switch input { opacity: 0; width: 0; height: 0; }
 
         .switch .slider {
             position: absolute;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background-color: #b7b9cc;
             transition: .2s;
             border-radius: 22px;
@@ -270,27 +284,16 @@ function statusBadgeClass($status)
         .switch .slider:before {
             position: absolute;
             content: "";
-            height: 16px;
-            width: 16px;
-            left: 3px;
-            bottom: 3px;
+            height: 16px; width: 16px;
+            left: 3px; bottom: 3px;
             background-color: white;
             transition: .2s;
             border-radius: 50%;
         }
 
-        .switch input:checked+.slider {
-            background-color: #1cc88a;
-        }
-
-        .switch input:checked+.slider:before {
-            transform: translateX(22px);
-        }
-
-        .switch input:disabled+.slider {
-            opacity: .6;
-            cursor: not-allowed;
-        }
+        .switch input:checked+.slider { background-color: #1cc88a; }
+        .switch input:checked+.slider:before { transform: translateX(22px); }
+        .switch input:disabled+.slider { opacity: .6; cursor: not-allowed; }
 
         #statusFilter .nav-link {
             padding: .35rem 1rem;
@@ -307,19 +310,20 @@ function statusBadgeClass($status)
             font-weight: 600;
         }
 
-        .dataTables_wrapper .dataTables_filter input {
+        .dataTables_wrapper .dataTables_filter input,
+        .dataTables_wrapper .dataTables_length select {
             border: 1px solid #d1d3e2;
             border-radius: .35rem;
-            padding: .35rem .6rem;
             font-size: .9rem;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            padding: .35rem .6rem;
             margin-left: .5rem;
         }
 
         .dataTables_wrapper .dataTables_length select {
-            border: 1px solid #d1d3e2;
-            border-radius: .35rem;
             padding: .35rem 1.5rem .35rem .6rem;
-            font-size: .9rem;
         }
 
         .dataTables_wrapper .dataTables_paginate .paginate_button.current {
@@ -336,31 +340,24 @@ function statusBadgeClass($status)
             border-radius: .35rem;
         }
     </style>
-
 </head>
 
 <body id="page-top">
 
     <div id="wrapper">
-
         <?php include 'layout/sidebar.php'; ?>
-
         <div id="content-wrapper" class="d-flex flex-column">
-
             <div id="content">
-
                 <?php include 'layout/topbar.php'; ?>
-
                 <div class="container-fluid">
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">
                             <i class="fas fa-route mr-2"></i>Trips
                         </h1>
-
                         <?php if (hasPermission('trip.create')): ?>
                             <a href="trip.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-plus fa-sm text-white-50 mr-1"></i>
                                 Add Trip
                             </a>
@@ -371,26 +368,20 @@ function statusBadgeClass($status)
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle mr-1"></i>
                             <?= htmlspecialchars($flash, ENT_QUOTES, 'UTF-8') ?>
-                            <button type="button" class="close" data-dismiss="alert">
-                                <span>&times;</span>
-                            </button>
+                            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
                         </div>
                     <?php endif; ?>
 
                     <div class="card shadow mb-4">
-
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-list mr-1"></i>
                                 All Trips
                                 <?php if ($restrictedToBranch): ?>
-                                    <span class="text-muted small ml-1">
-                                        (trips touching your branch)
-                                    </span>
+                                    <span class="text-muted small ml-1">(your branch)</span>
                                 <?php endif; ?>
                             </h6>
                         </div>
-
                         <div class="card-body">
 
                             <ul class="nav nav-pills mb-3" id="statusFilter">
@@ -415,24 +406,19 @@ function statusBadgeClass($status)
                             </ul>
 
                             <div class="table-responsive">
-
                                 <table class="table table-bordered table-hover"
-                                    id="tripsTable"
-                                    width="100%"
-                                    cellspacing="0">
-
+                                    id="tripsTable" width="100%" cellspacing="0">
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Trip No</th>
-                                            <th>Date</th>
+                                            <th>Created</th>
                                             <th>Route</th>
-                                            <th>Lorry</th>
+                                            <th>Truck</th>
                                             <th>Driver</th>
                                             <th>Status</th>
-                                            <th width="130" class="text-center">Action</th>
+                                            <th width="150" class="text-center">Action</th>
                                         </tr>
                                     </thead>
-
                                     <tbody>
                                         <?php foreach ($trips as $row):
                                             $isActive   = ((int) $row['active'] === 1);
@@ -444,34 +430,25 @@ function statusBadgeClass($status)
                                                 data-active="<?= $isActive ? '1' : '0' ?>"
                                                 data-status="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"
                                                 class="<?= $isActive ? '' : 'row-inactive' ?>">
-
                                                 <td class="align-middle">
                                                     <a href="trip-view.php?id=<?= (int) $row['id'] ?>"
                                                         class="trip-no text-decoration-none">
                                                         <?= htmlspecialchars($row['trip_no'], ENT_QUOTES, 'UTF-8') ?>
                                                     </a>
                                                 </td>
-
-                                                <td class="align-middle small">
-                                                    <?= date('d M Y', strtotime($row['start_date'])) ?>
+                                                <td class="align-middle small"
+                                                    data-sort="<?= htmlspecialchars($row['created_at'], ENT_QUOTES, 'UTF-8') ?>">
+                                                    <?= date('d M Y, h:i A', strtotime($row['created_at'])) ?>
                                                 </td>
-
                                                 <td class="align-middle route-cell">
-                                                    <span class="branch-badge">
-                                                        <?= htmlspecialchars($row['from_branch_name'] ?: '—', ENT_QUOTES, 'UTF-8') ?>
-                                                        <?php if (!empty($row['from_branch_code'])): ?>
-                                                            <span class="branch-code-mini">(<?= htmlspecialchars($row['from_branch_code'], ENT_QUOTES, 'UTF-8') ?>)</span>
-                                                        <?php endif; ?>
+                                                    <span class="city-badge">
+                                                        <?= htmlspecialchars($row['source'] ?: '—', ENT_QUOTES, 'UTF-8') ?>
                                                     </span>
                                                     <i class="fas fa-arrow-right route-arrow"></i>
-                                                    <span class="branch-badge">
-                                                        <?= htmlspecialchars($row['to_branch_name'] ?: '—', ENT_QUOTES, 'UTF-8') ?>
-                                                        <?php if (!empty($row['to_branch_code'])): ?>
-                                                            <span class="branch-code-mini">(<?= htmlspecialchars($row['to_branch_code'], ENT_QUOTES, 'UTF-8') ?>)</span>
-                                                        <?php endif; ?>
+                                                    <span class="city-badge">
+                                                        <?= htmlspecialchars($row['destination'] ?: '—', ENT_QUOTES, 'UTF-8') ?>
                                                     </span>
                                                 </td>
-
                                                 <td class="align-middle small">
                                                     <?php if (!empty($row['lorry_number'])): ?>
                                                         <span class="font-weight-bold">
@@ -481,7 +458,6 @@ function statusBadgeClass($status)
                                                         <span class="text-muted">—</span>
                                                     <?php endif; ?>
                                                 </td>
-
                                                 <td class="align-middle small">
                                                     <?php if (!empty($row['driver_name'])): ?>
                                                         <?= htmlspecialchars($row['driver_name'], ENT_QUOTES, 'UTF-8') ?>
@@ -489,27 +465,33 @@ function statusBadgeClass($status)
                                                         <span class="text-muted">—</span>
                                                     <?php endif; ?>
                                                 </td>
-
                                                 <td class="align-middle">
                                                     <span class="status-badge <?= $badgeClass ?>">
                                                         <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>
                                                     </span>
                                                 </td>
-
                                                 <td class="align-middle text-center text-nowrap">
-                                                    <div class="table-actions">
+                                                    <div class="table-actions d-inline-flex align-items-center" style="gap: 6px;">
 
-                                                        <?php if (hasPermission('trip.edit')): ?>
+                                                        <?php if (hasPermission('trip.view')): ?>
                                                             <a href="trip-view.php?id=<?= (int) $row['id'] ?>"
                                                                 class="btn btn-sm btn-primary"
-                                                                title="Open trip">
+                                                                title="View trip">
                                                                 <i class="fas fa-eye"></i>
+                                                            </a>
+                                                        <?php endif; ?>
+
+                                                        <?php if (hasPermission('trip.edit') && in_array($status, ['Scheduled', 'In Progress', 'Delivered'])): ?>
+                                                            <a href="trip.php?id=<?= (int) $row['id'] ?>"
+                                                                class="btn btn-sm btn-info"
+                                                                title="Edit trip">
+                                                                <i class="fas fa-edit"></i>
                                                             </a>
                                                         <?php endif; ?>
 
                                                         <?php if (hasPermission('trip.delete')): ?>
                                                             <label class="switch mb-0"
-                                                                title="<?= $isActive ? 'Mark as Inactive' : 'Mark as Active' ?>">
+                                                                title="<?= $isActive ? 'Mark as Inactive (restores stock)' : 'Mark as Active (deducts stock again)' ?>">
                                                                 <input type="checkbox"
                                                                     class="js-toggle-active"
                                                                     data-id="<?= (int) $row['id'] ?>"
@@ -517,30 +499,21 @@ function statusBadgeClass($status)
                                                                 <span class="slider"></span>
                                                             </label>
                                                         <?php endif; ?>
-
                                                     </div>
                                                 </td>
-
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
-
                                 </table>
-
                             </div>
 
                         </div>
-
                     </div>
 
                 </div>
-
             </div>
-
             <?php include 'layout/footer.php'; ?>
-
         </div>
-
     </div>
 
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
@@ -551,7 +524,7 @@ function statusBadgeClass($status)
 
             var table = $('#tripsTable').DataTable({
                 order: [
-                    [0, 'desc']
+                    [1, 'desc']
                 ],
                 pageLength: 10,
                 lengthMenu: [
@@ -578,16 +551,12 @@ function statusBadgeClass($status)
             });
 
             var currentFilter = 'all';
-
             $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
                 if (currentFilter === 'all') return true;
-
                 var rowNode = table.row(dataIndex).node();
                 var status = String($(rowNode).data('status'));
-
                 return status === currentFilter;
             });
-
             $('#statusFilter .nav-link').on('click', function(e) {
                 e.preventDefault();
                 $('#statusFilter .nav-link').removeClass('active');
@@ -609,26 +578,20 @@ function statusBadgeClass($status)
                         url: 'trips-list.php?action=toggle_active',
                         type: 'POST',
                         dataType: 'json',
-                        data: {
-                            id: id
-                        }
+                        data: { id: id }
                     })
                     .done(function(res) {
-
                         if (!res.success) {
                             $cb.prop('checked', !isNow);
                             if (res.message) alert(res.message);
                             return;
                         }
-
                         $row.attr('data-active', res.active);
-
                         if (res.active === 1) {
                             $row.removeClass('row-inactive');
                         } else {
                             $row.addClass('row-inactive');
                         }
-
                         table.draw(false);
                     })
                     .fail(function() {
@@ -637,9 +600,7 @@ function statusBadgeClass($status)
                     .always(function() {
                         $cb.prop('disabled', false);
                     });
-
             });
-
         });
     </script>
 

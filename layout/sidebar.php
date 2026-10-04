@@ -2,39 +2,41 @@
 include_once 'session.php';
 $current = basename($_SERVER['PHP_SELF']);
 
-/* =========================================================
-   Feature flags
-   ========================================================= */
-$SHOW_DRIVERS  = true;
-$SHOW_VENDORS  = false;   /* hidden per request — flag kept */
-$SHOW_ITEMS    = true;
-$SHOW_TRIPS    = true;    /* enabled */
-$SHOW_INVOICES = false;
-$SHOW_PAYMENTS = false;
-$SHOW_REPORTS  = false;
+$SHOW_DRIVERS   = true;
+$SHOW_VENDORS   = false;
+$SHOW_SUPPLIERS = true;
+$SHOW_ITEMS     = true;
+$SHOW_TRIPS     = true;
+$SHOW_INVOICES  = false;
+$SHOW_PAYMENTS  = false;
+$SHOW_REPORTS   = false;
 
-/* =========================================================
-   Permission flags
-   ========================================================= */
-$canParty   = hasPermission('party.view');
-$canLorry   = hasPermission('lorry.view');
-$canDriver  = hasPermission('driver.view');
-$canVendor  = hasPermission('vendor.view');
-$canItem    = hasPermission('item.view');
-$canTrip    = hasPermission('trip.view');
-$canInvoice = hasPermission('invoice.view');
-$canPayment = hasPermission('payment.view');
-$canReport  = hasPermission('report.view');
+$canParty       = hasPermission('party.view');
+$canLorry       = hasPermission('lorry.view');
+$canDriver      = hasPermission('driver.view');
+$canVendor      = hasPermission('vendor.view');
+$canSupplier    = hasPermission('supplier.view');
+$canItem        = hasPermission('inventory.view');
+$canPartyRate   = hasPermission('party_rate.view');
+$canTrip        = hasPermission('trip.view');
+$canInvoice     = hasPermission('invoice.view');
+$canPayment     = hasPermission('payment.view');
+$canReport      = hasPermission('report.view');
+$canExpenseRep  = hasPermission('report.view');
+$canConsignment = hasPermission('consignment.view');
 
-$isPartySection   = in_array($current, ['party.php', 'parties-list.php'], true);
-$isLorrySection   = in_array($current, ['lorry.php', 'lorries-list.php'], true);
-$isDriverSection  = in_array($current, ['driver.php', 'drivers-list.php'], true);
-$isVendorSection  = in_array($current, ['vendor.php', 'vendors-list.php'], true);
-$isItemSection    = in_array($current, ['item.php', 'items-list.php'], true);
-$isTripSection    = in_array($current, ['trip.php', 'trips-list.php', 'trip-view.php', 'trip-expense.php'], true);
-$isInvoiceSection = in_array($current, ['invoice.php', 'invoices-list.php', 'invoice-print.php'], true);
-$isPaymentSection = in_array($current, ['payment.php', 'payments-list.php'], true);
-$isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.php', 'report-collections.php', 'report-monthly.php', 'report-lorry.php', 'report-driver.php', 'report-expenses.php'], true);
+$isPartySection       = in_array($current, ['party.php', 'parties-list.php'], true);
+$isLorrySection       = in_array($current, ['lorry.php', 'lorries-list.php'], true);
+$isDriverSection      = in_array($current, ['driver.php', 'drivers-list.php'], true);
+$isVendorSection      = in_array($current, ['vendor.php', 'vendors-list.php'], true);
+$isSupplierSection    = in_array($current, ['supplier.php', 'suppliers-list.php'], true);
+$isItemSection        = in_array($current, ['inventory.php', 'inventory-list.php', 'party-rates.php'], true);
+$isTripSection        = in_array($current, ['trip.php', 'trips-list.php', 'trip-view.php'], true);
+$isExpensesReport     = ($current === 'expenses-report.php');
+$isConsignmentSection = in_array($current, ['consignment.php', 'consignments-list.php', 'consignment-print.php'], true);
+$isInvoiceSection     = in_array($current, ['invoice.php', 'invoices-list.php', 'invoice-print.php'], true);
+$isPaymentSection     = in_array($current, ['payment.php', 'payments-list.php'], true);
+$isReportSection      = in_array($current, ['reports-dashboard.php', 'report-trips.php', 'report-collections.php', 'report-monthly.php', 'report-lorry.php', 'report-driver.php', 'report-expenses.php'], true);
 ?>
 
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
@@ -57,9 +59,7 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
         </a>
     </li>
 
-    <!-- =========================================================
-         TRIPS (moved to top)
-         ========================================================= -->
+    <!-- TRIPS -->
     <?php if ($SHOW_TRIPS && $canTrip): ?>
         <li class="nav-item <?= $isTripSection ? 'active' : '' ?>">
             <a class="nav-link <?= $isTripSection ? '' : 'collapsed' ?>"
@@ -87,7 +87,45 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
         </li>
     <?php endif; ?>
 
-    <?php if ($canParty || $canLorry || ($SHOW_DRIVERS && $canDriver) || ($SHOW_VENDORS && $canVendor) || ($SHOW_ITEMS && $canItem)): ?>
+    <!-- CONSIGNMENTS -->
+    <?php if ($canConsignment): ?>
+        <li class="nav-item <?= $isConsignmentSection ? 'active' : '' ?>">
+            <a class="nav-link <?= $isConsignmentSection ? '' : 'collapsed' ?>"
+                href="#"
+                data-toggle="collapse"
+                data-target="#collapseConsignments"
+                aria-expanded="<?= $isConsignmentSection ? 'true' : 'false' ?>"
+                aria-controls="collapseConsignments">
+                <i class="fas fa-fw fa-file-alt"></i>
+                <span>Consignments</span>
+            </a>
+            <div id="collapseConsignments" class="collapse <?= $isConsignmentSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
+                <div class="bg-white py-2 collapse-inner rounded">
+                    <h6 class="collapse-header">Consignments:</h6>
+                    <?php if (hasPermission('consignment.create')): ?>
+                        <a class="collapse-item <?= $current === 'consignment.php' ? 'active' : '' ?>" href="consignment.php">
+                            <i class="fas fa-fw fa-plus mr-1"></i> Add Consignment
+                        </a>
+                    <?php endif; ?>
+                    <a class="collapse-item <?= in_array($current, ['consignments-list.php', 'consignment-print.php'], true) ? 'active' : '' ?>" href="consignments-list.php">
+                        <i class="fas fa-fw fa-list mr-1"></i> All Consignments
+                    </a>
+                </div>
+            </div>
+        </li>
+    <?php endif; ?>
+
+    <!-- EXPENSES REPORT -->
+    <?php if ($canExpenseRep): ?>
+        <li class="nav-item <?= $isExpensesReport ? 'active' : '' ?>">
+            <a class="nav-link" href="expenses-report.php">
+                <i class="fas fa-fw fa-receipt"></i>
+                <span>Expenses Report</span>
+            </a>
+        </li>
+    <?php endif; ?>
+
+    <?php if ($canParty || $canLorry || ($SHOW_DRIVERS && $canDriver) || ($SHOW_SUPPLIERS && $canSupplier) || ($SHOW_VENDORS && $canVendor) || ($SHOW_ITEMS && $canItem)): ?>
         <hr class="sidebar-divider">
         <div class="sidebar-heading">Master</div>
     <?php endif; ?>
@@ -120,7 +158,7 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
         </li>
     <?php endif; ?>
 
-    <!-- LORRIES -->
+    <!-- TRUCKS -->
     <?php if ($canLorry): ?>
         <li class="nav-item <?= $isLorrySection ? 'active' : '' ?>">
             <a class="nav-link <?= $isLorrySection ? '' : 'collapsed' ?>"
@@ -130,18 +168,18 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
                 aria-expanded="<?= $isLorrySection ? 'true' : 'false' ?>"
                 aria-controls="collapseLorries">
                 <i class="fas fa-fw fa-truck"></i>
-                <span>Lorries</span>
+                <span>Trucks</span>
             </a>
             <div id="collapseLorries" class="collapse <?= $isLorrySection ? 'show' : '' ?>" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Lorries:</h6>
+                    <h6 class="collapse-header">Trucks:</h6>
                     <?php if (hasPermission('lorry.create')): ?>
                         <a class="collapse-item <?= $current === 'lorry.php' ? 'active' : '' ?>" href="lorry.php">
-                            <i class="fas fa-fw fa-plus mr-1"></i> Add Lorry
+                            <i class="fas fa-fw fa-plus mr-1"></i> Add Truck
                         </a>
                     <?php endif; ?>
                     <a class="collapse-item <?= $current === 'lorries-list.php' ? 'active' : '' ?>" href="lorries-list.php">
-                        <i class="fas fa-fw fa-list mr-1"></i> All Lorries
+                        <i class="fas fa-fw fa-list mr-1"></i> All Trucks
                     </a>
                 </div>
             </div>
@@ -176,7 +214,35 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
         </li>
     <?php endif; ?>
 
-    <!-- VENDORS (hidden by flag, kept for later) -->
+    <!-- SUPPLIERS -->
+    <?php if ($SHOW_SUPPLIERS && $canSupplier): ?>
+        <li class="nav-item <?= $isSupplierSection ? 'active' : '' ?>">
+            <a class="nav-link <?= $isSupplierSection ? '' : 'collapsed' ?>"
+                href="#"
+                data-toggle="collapse"
+                data-target="#collapseSuppliers"
+                aria-expanded="<?= $isSupplierSection ? 'true' : 'false' ?>"
+                aria-controls="collapseSuppliers">
+                <i class="fas fa-fw fa-truck-loading"></i>
+                <span>Suppliers</span>
+            </a>
+            <div id="collapseSuppliers" class="collapse <?= $isSupplierSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
+                <div class="bg-white py-2 collapse-inner rounded">
+                    <h6 class="collapse-header">Suppliers:</h6>
+                    <?php if (hasPermission('supplier.create')): ?>
+                        <a class="collapse-item <?= $current === 'supplier.php' ? 'active' : '' ?>" href="supplier.php">
+                            <i class="fas fa-fw fa-plus mr-1"></i> Add Supplier
+                        </a>
+                    <?php endif; ?>
+                    <a class="collapse-item <?= $current === 'suppliers-list.php' ? 'active' : '' ?>" href="suppliers-list.php">
+                        <i class="fas fa-fw fa-list mr-1"></i> All Suppliers
+                    </a>
+                </div>
+            </div>
+        </li>
+    <?php endif; ?>
+
+    <!-- VENDORS -->
     <?php if ($SHOW_VENDORS && $canVendor): ?>
         <li class="nav-item <?= $isVendorSection ? 'active' : '' ?>">
             <a class="nav-link <?= $isVendorSection ? '' : 'collapsed' ?>"
@@ -204,7 +270,7 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
         </li>
     <?php endif; ?>
 
-    <!-- ITEMS -->
+    <!-- INVENTORY & RATES -->
     <?php if ($SHOW_ITEMS && $canItem): ?>
         <li class="nav-item <?= $isItemSection ? 'active' : '' ?>">
             <a class="nav-link <?= $isItemSection ? '' : 'collapsed' ?>"
@@ -214,129 +280,26 @@ $isReportSection  = in_array($current, ['reports-dashboard.php', 'report-trips.p
                 aria-expanded="<?= $isItemSection ? 'true' : 'false' ?>"
                 aria-controls="collapseItems">
                 <i class="fas fa-fw fa-box"></i>
-                <span>Items</span>
+                <span>Inventory</span>
             </a>
             <div id="collapseItems" class="collapse <?= $isItemSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Items:</h6>
-                    <?php if (hasPermission('item.create')): ?>
-                        <a class="collapse-item <?= $current === 'item.php' ? 'active' : '' ?>" href="item.php">
-                            <i class="fas fa-fw fa-plus mr-1"></i> Add Item
+                    <h6 class="collapse-header">Inventory:</h6>
+                    <?php if (hasPermission('inventory.create')): ?>
+                        <a class="collapse-item <?= $current === 'inventory.php' ? 'active' : '' ?>" href="inventory.php">
+                            <i class="fas fa-fw fa-plus mr-1"></i> Add Inventory
                         </a>
                     <?php endif; ?>
-                    <a class="collapse-item <?= $current === 'items-list.php' ? 'active' : '' ?>" href="items-list.php">
-                        <i class="fas fa-fw fa-list mr-1"></i> All Items
+                    <a class="collapse-item <?= $current === 'inventory-list.php' ? 'active' : '' ?>" href="inventory-list.php">
+                        <i class="fas fa-fw fa-list mr-1"></i> All Inventory
                     </a>
-                </div>
-            </div>
-        </li>
-    <?php endif; ?>
-
-    <!-- =========================================================
-         TRIPS — original position (kept, disabled via false &&)
-         Re-enable by removing "false &&" and hiding the top block.
-         ========================================================= -->
-    <?php if (false && $SHOW_TRIPS && $canTrip): ?>
-        <li class="nav-item <?= $isTripSection ? 'active' : '' ?>">
-            <a class="nav-link <?= $isTripSection ? '' : 'collapsed' ?>"
-                href="#"
-                data-toggle="collapse"
-                data-target="#collapseTrips"
-                aria-expanded="<?= $isTripSection ? 'true' : 'false' ?>"
-                aria-controls="collapseTrips">
-                <i class="fas fa-fw fa-route"></i>
-                <span>Trips</span>
-            </a>
-            <div id="collapseTrips" class="collapse <?= $isTripSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Trips:</h6>
-                    <?php if (hasPermission('trip.create')): ?>
-                        <a class="collapse-item <?= $current === 'trip.php' ? 'active' : '' ?>" href="trip.php">
-                            <i class="fas fa-fw fa-plus mr-1"></i> Add Trip
+                    
+                    <!-- NEW PARTY RATE LINK WITH PERMISSION CHECK -->
+                    <?php if ($canPartyRate): ?>
+                        <a class="collapse-item <?= $current === 'party-rates.php' ? 'active' : '' ?>" href="party-rates.php">
+                            <i class="fas fa-fw fa-hand-holding-usd mr-1"></i> Party Wise Rates
                         </a>
                     <?php endif; ?>
-                    <a class="collapse-item <?= in_array($current, ['trips-list.php', 'trip-view.php'], true) ? 'active' : '' ?>" href="trips-list.php">
-                        <i class="fas fa-fw fa-list mr-1"></i> All Trips
-                    </a>
-                </div>
-            </div>
-        </li>
-    <?php endif; ?>
-
-    <!-- INVOICES (hidden until built) -->
-    <?php if ($SHOW_INVOICES && $canInvoice): ?>
-        <li class="nav-item <?= $isInvoiceSection ? 'active' : '' ?>">
-            <a class="nav-link <?= $isInvoiceSection ? '' : 'collapsed' ?>"
-                href="#"
-                data-toggle="collapse"
-                data-target="#collapseInvoices"
-                aria-expanded="<?= $isInvoiceSection ? 'true' : 'false' ?>"
-                aria-controls="collapseInvoices">
-                <i class="fas fa-fw fa-file-invoice"></i>
-                <span>Invoices</span>
-            </a>
-            <div id="collapseInvoices" class="collapse <?= $isInvoiceSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Invoices:</h6>
-                    <?php if (hasPermission('invoice.create')): ?>
-                        <a class="collapse-item <?= $current === 'invoice.php' ? 'active' : '' ?>" href="invoice.php">
-                            <i class="fas fa-fw fa-plus mr-1"></i> Create Invoice
-                        </a>
-                    <?php endif; ?>
-                    <a class="collapse-item <?= $current === 'invoices-list.php' ? 'active' : '' ?>" href="invoices-list.php">
-                        <i class="fas fa-fw fa-list mr-1"></i> All Invoices
-                    </a>
-                </div>
-            </div>
-        </li>
-    <?php endif; ?>
-
-    <!-- PAYMENTS (hidden until built) -->
-    <?php if ($SHOW_PAYMENTS && $canPayment): ?>
-        <li class="nav-item <?= $isPaymentSection ? 'active' : '' ?>">
-            <a class="nav-link <?= $isPaymentSection ? '' : 'collapsed' ?>"
-                href="#"
-                data-toggle="collapse"
-                data-target="#collapsePayments"
-                aria-expanded="<?= $isPaymentSection ? 'true' : 'false' ?>"
-                aria-controls="collapsePayments">
-                <i class="fas fa-fw fa-money-bill-wave"></i>
-                <span>Payments</span>
-            </a>
-            <div id="collapsePayments" class="collapse <?= $isPaymentSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Payments:</h6>
-                    <?php if (hasPermission('payment.create')): ?>
-                        <a class="collapse-item <?= $current === 'payment.php' ? 'active' : '' ?>" href="payment.php">
-                            <i class="fas fa-fw fa-plus mr-1"></i> Record Payment
-                        </a>
-                    <?php endif; ?>
-                    <a class="collapse-item <?= $current === 'payments-list.php' ? 'active' : '' ?>" href="payments-list.php">
-                        <i class="fas fa-fw fa-list mr-1"></i> All Payments
-                    </a>
-                </div>
-            </div>
-        </li>
-    <?php endif; ?>
-
-    <!-- REPORTS (hidden until built) -->
-    <?php if ($SHOW_REPORTS && $canReport): ?>
-        <li class="nav-item <?= $isReportSection ? 'active' : '' ?>">
-            <a class="nav-link <?= $isReportSection ? '' : 'collapsed' ?>"
-                href="#"
-                data-toggle="collapse"
-                data-target="#collapseReports"
-                aria-expanded="<?= $isReportSection ? 'true' : 'false' ?>"
-                aria-controls="collapseReports">
-                <i class="fas fa-fw fa-chart-line"></i>
-                <span>Reports</span>
-            </a>
-            <div id="collapseReports" class="collapse <?= $isReportSection ? 'show' : '' ?>" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Reports:</h6>
-                    <a class="collapse-item <?= $current === 'reports-dashboard.php' ? 'active' : '' ?>" href="reports-dashboard.php">
-                        <i class="fas fa-fw fa-chart-pie mr-1"></i> Dashboard
-                    </a>
                 </div>
             </div>
         </li>

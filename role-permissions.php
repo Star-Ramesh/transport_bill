@@ -252,7 +252,7 @@ $totalGranted = count($granted);
                             Permissions for: <span class="text-primary"><?= htmlspecialchars($role['role_name'], ENT_QUOTES, 'UTF-8') ?></span>
                         </h1>
                         <a href="roles-list.php"
-                            class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                            class="d-inline-block btn btn-sm btn-secondary shadow-sm">
                             <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i>
                             Back to Roles
                         </a>

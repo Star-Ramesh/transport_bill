@@ -1,9 +1,9 @@
 <?php
 /* =========================================================
-   chalan-print.php
+   consignment-print.php
    ---------------------------------------------------------
-   Prints the Truck Chalan for one trip.
-   Usage: chalan-print.php?id=N
+   Prints the Consignment Note for one trip.
+   Usage: consignment-print.php?id=N
    Format: A5 landscape
    ========================================================= */
 
@@ -35,7 +35,7 @@ function paymentKind($type)
 }
 
 /* =========================================================
-   LOAD THE TRIP
+   LOAD THE TRIP (single-table, no JOINs)
    ========================================================= */
 $tripId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
@@ -61,6 +61,7 @@ if (!$resTrip || mysqli_num_rows($resTrip) !== 1) {
     header("Location: trips-list.php");
     exit;
 }
+
 $trip = mysqli_fetch_assoc($resTrip);
 
 /* Lookup lorry */
@@ -92,7 +93,7 @@ if ((int) $trip['driver_id'] > 0) {
 }
 
 /* =========================================================
-   LOAD PARTIES + ITEMS + PAYMENT TOTALS
+   LOAD PARTIES + ITEMS (no JOINs)
    ========================================================= */
 $items = [];
 $totalFreight  = 0;
@@ -100,32 +101,35 @@ $totalReceived = 0;
 $totalExtra    = 0;
 $partyCount    = 0;
 
-$consignorPartyName = '';
-$consignorTradeName = '';
-$consignorGstin     = '';
-$consignorAddress   = '';
-$consignorCity      = '';
-$consignorState     = '';
-$consignorPincode   = '';
-$consignorPhone     = '';
+$consignorPartyName  = '';
+$consignorTradeName  = '';
+$consignorGstin      = '';
+$consignorAddress    = '';
+$consignorCity       = '';
+$consignorState      = '';
+$consignorPincode    = '';
+$consignorPhone      = '';
 
-$consigneePartyName = '';
-$consigneeTradeName = '';
-$consigneeGstin     = '';
-$consigneeAddress   = '';
-$consigneeCity      = '';
-$consigneeState     = '';
-$consigneePincode   = '';
-$consigneePhone     = '';
+$consigneePartyName  = '';
+$consigneeTradeName  = '';
+$consigneeGstin      = '';
+$consigneeAddress    = '';
+$consigneeCity       = '';
+$consigneeState      = '';
+$consigneePincode    = '';
+$consigneePhone      = '';
 
-$resParties = mysqli_query($conn, "SELECT * FROM trip_party WHERE trip_id = $tripId ORDER BY id ASC");
+$resParties = mysqli_query(
+    $conn,
+    "SELECT * FROM trip_party WHERE trip_id = $tripId ORDER BY id ASC"
+);
 
 if ($resParties) {
     while ($p = mysqli_fetch_assoc($resParties)) {
         $partyCount++;
         $tpId = (int) $p['id'];
 
-        /* First row = printed Consignor */
+        /* First row becomes the printed Consignor */
         if ($consignorPartyName === '' && (int) $p['party_id'] > 0) {
             $pid = (int) $p['party_id'];
             $pr = mysqli_query($conn, "SELECT legal_name, trade_name, gstin, address, city, state, pincode, phone FROM party WHERE id = $pid LIMIT 1");
@@ -142,7 +146,7 @@ if ($resParties) {
             }
         }
 
-        /* First trip_party row with a consignee = printed Consignee */
+        /* First trip_party row that has a consignee becomes the printed Consignee */
         if ($consigneePartyName === '' && (int) $p['consignee_party_id'] > 0) {
             $cpId = (int) $p['consignee_party_id'];
             $cr = mysqli_query($conn, "SELECT legal_name, trade_name, gstin, address, city, state, pincode, phone FROM party WHERE id = $cpId LIMIT 1");
@@ -174,7 +178,6 @@ if ($resParties) {
             }
         }
 
-        /* Items */
         $resItems = mysqli_query(
             $conn,
             "SELECT inventory_name, unit, quantity, rate, amount
@@ -203,6 +206,7 @@ if ($valueOfGoods === 0.0) {
     $valueOfGoods = $totalFreight;
 }
 
+/* Any item in Item-wise mode? */
 $hasItemWise = false;
 foreach ($items as $it) {
     if ((int) $it['freight_mode'] === 1) {
@@ -229,7 +233,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Truck Chalan — <?= htmlspecialchars($trip['trip_no'], ENT_QUOTES, 'UTF-8') ?></title>
+    <title>Consignment Note — <?= htmlspecialchars($trip['trip_no'], ENT_QUOTES, 'UTF-8') ?></title>
     <style>
         @page { size: A5 landscape; margin: 6mm; }
 
@@ -275,15 +279,8 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             font-family: inherit;
         }
 
-        .print-toolbar .btn.secondary {
-            background: #fff;
-            color: #4e73df;
-        }
-
-        .print-toolbar .hint {
-            color: #6e707e;
-            font-size: 12px;
-        }
+        .print-toolbar .btn.secondary { background: #fff; color: #4e73df; }
+        .print-toolbar .hint { color: #6e707e; font-size: 12px; }
 
         .page {
             width: 210mm;
@@ -329,7 +326,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
 
         .header-right { flex: 0 0 auto; text-align: right; }
 
-        .chalan-title {
+        .doc-title {
             font-size: 11px;
             font-weight: 800;
             letter-spacing: 1px;
@@ -508,36 +505,22 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             padding: 2px 4px;
         }
 
-        table.tax {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 8.5px;
-            margin-bottom: 3px;
-        }
-
-        table.tax th,
-        table.tax td {
+        .declaration {
+            font-size: 7.5px;
             border: 1px solid #000;
-            padding: 1.5px 4px;
+            padding: 3px 6px;
+            margin-bottom: 3px;
+            color: #333;
         }
 
-        table.tax th {
-            font-size: 7px;
-            text-transform: uppercase;
-            background: #efefef;
-            text-align: left;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-        }
-
-        table.tax td { height: 12px; }
+        .declaration strong { font-weight: 800; color: #000; }
 
         .signatures {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
             margin-top: auto;
-            padding-top: 7mm;
+            padding-top: 6mm;
         }
 
         .sig-block {
@@ -591,7 +574,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                 &larr; Back to Trip
             </a>
             <button type="button" class="btn" style="margin-left: 8px;" onclick="window.print();">
-                Print Chalan
+                Print Consignment
             </button>
         </div>
         <div class="hint">
@@ -614,7 +597,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                 </p>
             </div>
             <div class="header-right">
-                <div class="chalan-title">Truck Chalan</div>
+                <div class="doc-title">Consignment Note</div>
                 <div class="chalan-gstin">
                     GSTIN: <?= htmlspecialchars($companyGstin, ENT_QUOTES, 'UTF-8') ?>
                 </div>
@@ -624,7 +607,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
         <!-- META STRIP -->
         <div class="meta-strip">
             <div>
-                <span class="label">L.R. No</span>
+                <span class="label">Consignment No</span>
                 <span class="value"><?= htmlspecialchars($trip['trip_no'], ENT_QUOTES, 'UTF-8') ?></span>
             </div>
             <div>
@@ -643,6 +626,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
 
         <!-- CONSIGNOR / CONSIGNEE -->
         <div class="addr-row">
+
             <div class="addr-block">
                 <div class="addr-title">Consignor</div>
                 <?php if ($consignorPartyName !== ''): ?>
@@ -650,7 +634,9 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     <?php if ($consignorTradeName !== ''): ?>
                         <div class="addr-line"><?= htmlspecialchars($consignorTradeName, ENT_QUOTES, 'UTF-8') ?></div>
                     <?php endif; ?>
-                    <?php $cAddr = array_filter([$consignorAddress, $consignorCity, $consignorState, $consignorPincode]); ?>
+                    <?php
+                    $cAddr = array_filter([$consignorAddress, $consignorCity, $consignorState, $consignorPincode]);
+                    ?>
                     <?php if (!empty($cAddr)): ?>
                         <div class="addr-line"><?= htmlspecialchars(implode(', ', $cAddr), ENT_QUOTES, 'UTF-8') ?></div>
                     <?php endif; ?>
@@ -674,7 +660,9 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     <?php if ($consigneeTradeName !== ''): ?>
                         <div class="addr-line"><?= htmlspecialchars($consigneeTradeName, ENT_QUOTES, 'UTF-8') ?></div>
                     <?php endif; ?>
-                    <?php $ccAddr = array_filter([$consigneeAddress, $consigneeCity, $consigneeState, $consigneePincode]); ?>
+                    <?php
+                    $ccAddr = array_filter([$consigneeAddress, $consigneeCity, $consigneeState, $consigneePincode]);
+                    ?>
                     <?php if (!empty($ccAddr)): ?>
                         <div class="addr-line"><?= htmlspecialchars(implode(', ', $ccAddr), ENT_QUOTES, 'UTF-8') ?></div>
                     <?php endif; ?>
@@ -691,6 +679,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     <div class="addr-blank"></div>
                 <?php endif; ?>
             </div>
+
         </div>
 
         <!-- DETAILS -->
@@ -708,16 +697,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     <span class="k">Driver's L. No</span>
                     <span class="v"><?= htmlspecialchars($driverLicense ?: '', ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
-                <div class="detail-row">
-                    <span class="k">Owner's Name</span>
-                    <span class="v"><?= htmlspecialchars($ownerName ?: '', ENT_QUOTES, 'UTF-8') ?></span>
-                </div>
-                <div class="detail-row">
-                    <span class="k">Mob</span>
-                    <span class="v"><?= htmlspecialchars($driverPhone ?: '', ENT_QUOTES, 'UTF-8') ?></span>
-                </div>
             </div>
-
             <div class="detail-col">
                 <div class="detail-row">
                     <span class="k">Value of Goods Rs.</span>
@@ -726,10 +706,6 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                 <div class="detail-row">
                     <span class="k">Invoice No</span>
                     <span class="v">&nbsp;</span>
-                </div>
-                <div class="detail-row">
-                    <span class="k">No. of Parties</span>
-                    <span class="v"><?= (int) $partyCount ?></span>
                 </div>
                 <div class="detail-row">
                     <span class="k">No. of Items</span>
@@ -753,7 +729,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Particulars</th>
+                            <th>Description of Goods</th>
                             <th>Qty</th>
                             <th>Unit</th>
                             <th>Rate</th>
@@ -785,7 +761,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="5" style="text-align: right;">Total Freight (All Parties)</td>
+                            <td colspan="5" style="text-align: right;">Total Freight</td>
                             <td class="num"><?= number_format($totalFreight, 2) ?></td>
                         </tr>
                         <?php if ($totalExtra > 0.001): ?>
@@ -817,7 +793,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Particulars</th>
+                            <th>Description of Goods</th>
                             <th>Qty</th>
                             <th>Unit</th>
                         </tr>
@@ -864,21 +840,13 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             </div>
         <?php endif; ?>
 
-        <!-- GST ROW (blank — handwrite) -->
-        <table class="tax">
-            <tr>
-                <th style="width: 25%;">CGST 2.5%</th>
-                <th style="width: 25%;">SGST 2.5%</th>
-                <th style="width: 25%;">IGST 5%</th>
-                <th style="width: 25%;">Total Rs.</th>
-            </tr>
-            <tr>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-            </tr>
-        </table>
+        <!-- DECLARATION -->
+        <div class="declaration">
+            <strong>Declaration:</strong>
+            The goods described above are booked for transport as per the terms and conditions of
+            <?= htmlspecialchars($companyName, ENT_QUOTES, 'UTF-8') ?>.
+            Consignor declares that the contents and value of the consignment are correct.
+        </div>
 
         <!-- SIGNATURES -->
         <div class="signatures">
@@ -889,7 +857,7 @@ $companyGstin   = '19AMRPT0703N1ZQ';
             </div>
             <div class="sig-block">
                 <div class="sig-line"></div>
-                <div class="sig-label">Driver / Truck Owner</div>
+                <div class="sig-label">Driver / Agent</div>
                 <div class="sig-sub">Signature</div>
             </div>
             <div class="sig-block">

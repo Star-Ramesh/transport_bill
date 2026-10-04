@@ -1,44 +1,47 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
-requirePermission('item.view');
+requirePermission('inventory.view');
 
 /* =========================================================
    AJAX — toggle active
    ========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
-
     header('Content-Type: application/json');
 
-    if (!hasPermission('item.delete')) {
+    if (!hasPermission('inventory.delete')) {
         echo json_encode(['success' => false, 'message' => 'Permission denied.']);
         exit;
     }
 
     $id = (int) ($_POST['id'] ?? 0);
-
     if ($id <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Invalid item ID.']);
+        echo json_encode(['success' => false, 'message' => 'Invalid ID.']);
         exit;
+    }
+
+    $branchFilter = '';
+    if (!isAdmin()) {
+        $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
+        $branchFilter = " AND branch_id = $myBranch";
     }
 
     $check = mysqli_query(
         $conn,
-        "SELECT id, item_name, active FROM item WHERE id = $id LIMIT 1"
+        "SELECT id, item_name, active FROM inventory WHERE id = $id $branchFilter LIMIT 1"
     );
 
     if (!$check || mysqli_num_rows($check) !== 1) {
-        echo json_encode(['success' => false, 'message' => 'Item not found.']);
+        echo json_encode(['success' => false, 'message' => 'Inventory not found.']);
         exit;
     }
 
     $row = mysqli_fetch_assoc($check);
     $new = ((int) $row['active'] === 1) ? 0 : 1;
 
-    $upd = mysqli_query($conn, "UPDATE item SET active = $new WHERE id = $id");
-
+    $upd = mysqli_query($conn, "UPDATE inventory SET active = $new WHERE id = $id");
     if (!$upd) {
         echo json_encode(['success' => false, 'message' => mysqli_error($conn)]);
         exit;
@@ -48,29 +51,36 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
     exit;
 }
 
-/* =========================================================
-   FLASH
-   ========================================================= */
+
+/* FLASH */
 $flash = '';
 if (isset($_GET['msg'])) {
     switch ($_GET['msg']) {
         case 'added':
-            $flash = 'Item added successfully.';
+            $flash = 'Inventory added successfully.';
             break;
         case 'updated':
-            $flash = 'Item updated successfully.';
+            $flash = 'Inventory updated successfully.';
             break;
     }
 }
 
-/* =========================================================
-   DATA
-   ========================================================= */
-$pageTitle = 'Items | Billing Portal';
+/* DATA */
+$pageTitle = 'Inventory | Billing Portal';
 
-$sql = "SELECT id, item_name, unit, active, created_at
-        FROM item
-        ORDER BY id ASC";
+$where = '';
+if (!isAdmin()) {
+    $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
+    $where = "WHERE i.branch_id = $myBranch";
+}
+
+$sql = "SELECT i.id, i.branch_id, i.item_name, i.unit, i.rate,
+               i.active, i.created_at,
+               b.branch_name
+        FROM inventory i
+        LEFT JOIN branch b ON b.id = i.branch_id
+        $where
+        ORDER BY i.id DESC";
 
 $result = mysqli_query($conn, $sql);
 if (!$result) die("Query failed: " . mysqli_error($conn));
@@ -84,18 +94,12 @@ while ($row = mysqli_fetch_assoc($result)) {
 <html lang="en">
 
 <head>
-
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
     <title><?= $pageTitle ?></title>
-
     <?php include 'layout/header.php'; ?>
-
-    <link rel="stylesheet"
-        href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
-
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
     <style>
         table.dataTable tbody tr.row-inactive>td {
             background-color: #fdecea !important;
@@ -106,11 +110,11 @@ while ($row = mysqli_fetch_assoc($result)) {
             background-color: #fbd9d4 !important;
         }
 
-        #itemsTable {
+        #inventoryTable {
             font-size: 0.95rem;
         }
 
-        #itemsTable thead th {
+        #inventoryTable thead th {
             font-size: 0.78rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -121,14 +125,14 @@ while ($row = mysqli_fetch_assoc($result)) {
             white-space: nowrap;
         }
 
-        #itemsTable tbody td {
+        #inventoryTable tbody td {
             padding: 0.9rem 0.9rem;
             vertical-align: middle;
             color: #3a3b45;
             white-space: nowrap;
         }
 
-        #itemsTable tbody tr:hover>td {
+        #inventoryTable tbody tr:hover>td {
             background-color: #f7f9fc;
         }
 
@@ -147,6 +151,24 @@ while ($row = mysqli_fetch_assoc($result)) {
             background-color: #eef2ff;
             color: #3f51b5;
             border: 1px solid #dbe2ff;
+        }
+
+        .branch-badge {
+            display: inline-block;
+            padding: 0.25rem 0.65rem;
+            border-radius: 0.35rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background-color: #e8fbf4;
+            color: #0c7d5b;
+            border: 1px solid #c5f0e1;
+        }
+        
+        .rate-cell {
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #2c2e3e;
         }
 
         .switch {
@@ -244,33 +266,26 @@ while ($row = mysqli_fetch_assoc($result)) {
             border-radius: .35rem;
         }
     </style>
-
 </head>
 
 <body id="page-top">
 
     <div id="wrapper">
-
         <?php include 'layout/sidebar.php'; ?>
-
         <div id="content-wrapper" class="d-flex flex-column">
-
             <div id="content">
-
                 <?php include 'layout/topbar.php'; ?>
-
                 <div class="container-fluid">
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">
-                            <i class="fas fa-box mr-2"></i>Items
+                            <i class="fas fa-box mr-2"></i>Inventory
                         </h1>
-
-                        <?php if (hasPermission('item.create')): ?>
-                            <a href="item.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                        <?php if (hasPermission('inventory.create')): ?>
+                            <a href="inventory.php"
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-plus fa-sm text-white-50 mr-1"></i>
-                                Add Item
+                                Add Inventory
                             </a>
                         <?php endif; ?>
                     </div>
@@ -279,21 +294,20 @@ while ($row = mysqli_fetch_assoc($result)) {
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle mr-1"></i>
                             <?= htmlspecialchars($flash, ENT_QUOTES, 'UTF-8') ?>
-                            <button type="button" class="close" data-dismiss="alert">
-                                <span>&times;</span>
-                            </button>
+                            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
                         </div>
                     <?php endif; ?>
 
                     <div class="card shadow mb-4">
-
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-list mr-1"></i>
-                                All Items
+                                All Inventory
+                                <?php if (!isAdmin()): ?>
+                                    <span class="text-muted small ml-1">(your branch)</span>
+                                <?php endif; ?>
                             </h6>
                         </div>
-
                         <div class="card-body">
 
                             <ul class="nav nav-pills mb-3" id="activeFilter">
@@ -309,40 +323,35 @@ while ($row = mysqli_fetch_assoc($result)) {
                             </ul>
 
                             <div class="table-responsive">
-
                                 <table class="table table-bordered table-hover"
-                                    id="itemsTable"
-                                    width="100%"
-                                    cellspacing="0">
-
+                                    id="inventoryTable" width="100%" cellspacing="0">
                                     <thead class="thead-light">
                                         <tr>
                                             <th width="60">#</th>
-                                            <th>Item Name</th>
+                                            <th>Inventory Name</th>
                                             <th>Unit</th>
-                                            <th width="140" class="text-center">Action</th>
+                                            <th>Rate</th>
+                                            <th>Branch</th>
+                                            <th width="180" class="text-center">Action</th>
                                         </tr>
                                     </thead>
-
                                     <tbody>
                                         <?php foreach ($items as $i => $row):
                                             $isActive = ((int) $row['active'] === 1);
+                                            $rate     = number_format((float) $row['rate'], 2);
                                         ?>
                                             <tr
                                                 data-id="<?= (int) $row['id'] ?>"
                                                 data-active="<?= $isActive ? '1' : '0' ?>"
                                                 class="<?= $isActive ? '' : 'row-inactive' ?>">
-
                                                 <td class="text-muted small align-middle font-weight-bold">
                                                     <?= $i + 1 ?>
                                                 </td>
-
                                                 <td class="align-middle">
                                                     <span class="item-name">
                                                         <?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?>
                                                     </span>
                                                 </td>
-
                                                 <td class="align-middle">
                                                     <?php if (!empty($row['unit'])): ?>
                                                         <span class="unit-badge">
@@ -352,53 +361,54 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                         <span class="text-muted">—</span>
                                                     <?php endif; ?>
                                                 </td>
-
+                                                <td class="align-middle">
+                                                    <span class="rate-cell">
+                                                        ₹<?= $rate ?>
+                                                    </span>
+                                                </td>
+                                                <td class="align-middle">
+                                                    <?php if (!empty($row['branch_name'])): ?>
+                                                        <span class="branch-badge">
+                                                            <?= htmlspecialchars($row['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted small">—</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="align-middle text-center text-nowrap">
                                                     <div class="table-actions">
-
-                                                        <?php if (hasPermission('item.edit')): ?>
-                                                            <a href="item.php?id=<?= (int) $row['id'] ?>"
+                                                        <?php if (hasPermission('inventory.edit')): ?>
+                                                            <a href="inventory.php?id=<?= (int) $row['id'] ?>"
                                                                 class="btn btn-sm btn-primary"
-                                                                title="Edit item">
+                                                                title="Edit inventory">
                                                                 <i class="fas fa-pen"></i>
                                                             </a>
                                                         <?php endif; ?>
-
-                                                        <?php if (hasPermission('item.delete')): ?>
+                                                        <?php if (hasPermission('inventory.delete')): ?>
                                                             <label class="switch mb-0"
                                                                 title="<?= $isActive ? 'Mark as Inactive' : 'Mark as Active' ?>">
-                                                                <input
-                                                                    type="checkbox"
+                                                                <input type="checkbox"
                                                                     class="js-toggle-active"
                                                                     data-id="<?= (int) $row['id'] ?>"
                                                                     <?= $isActive ? 'checked' : '' ?>>
                                                                 <span class="slider"></span>
                                                             </label>
                                                         <?php endif; ?>
-
                                                     </div>
                                                 </td>
-
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
-
                                 </table>
-
                             </div>
 
                         </div>
-
                     </div>
 
                 </div>
-
             </div>
-
             <?php include 'layout/footer.php'; ?>
-
         </div>
-
     </div>
 
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
@@ -407,7 +417,8 @@ while ($row = mysqli_fetch_assoc($result)) {
     <script>
         $(function() {
 
-            var table = $('#itemsTable').DataTable({
+            /* ---------- DataTable ---------- */
+            var table = $('#inventoryTable').DataTable({
                 order: [
                     [0, 'asc']
                 ],
@@ -418,16 +429,16 @@ while ($row = mysqli_fetch_assoc($result)) {
                 ],
                 columnDefs: [{
                     orderable: false,
-                    targets: [3]
+                    targets: [5]
                 }],
                 language: {
                     search: '',
-                    searchPlaceholder: 'Search items...',
+                    searchPlaceholder: 'Search inventory...',
                     lengthMenu: 'Show _MENU_',
                     info: 'Showing _START_ to _END_ of _TOTAL_',
-                    infoEmpty: 'No items',
+                    infoEmpty: 'No inventory',
                     infoFiltered: '(filtered from _MAX_)',
-                    zeroRecords: 'No matching items found',
+                    zeroRecords: 'No matching inventory found',
                     paginate: {
                         previous: '<i class="fas fa-chevron-left"></i>',
                         next: '<i class="fas fa-chevron-right"></i>'
@@ -435,8 +446,8 @@ while ($row = mysqli_fetch_assoc($result)) {
                 }
             });
 
+            /* ---------- Active/Inactive filter ---------- */
             var currentFilter = 'all';
-
             $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
                 if (currentFilter === 'all') return true;
                 var rowNode = table.row(dataIndex).node();
@@ -445,7 +456,6 @@ while ($row = mysqli_fetch_assoc($result)) {
                 if (currentFilter === 'inactive') return !isActive;
                 return true;
             });
-
             $('#activeFilter .nav-link').on('click', function(e) {
                 e.preventDefault();
                 $('#activeFilter .nav-link').removeClass('active');
@@ -454,17 +464,15 @@ while ($row = mysqli_fetch_assoc($result)) {
                 table.draw();
             });
 
+            /* ---------- Toggle active ---------- */
             $(document).on('change', '.js-toggle-active', function() {
-
                 var $cb = $(this);
                 var id = $cb.data('id');
                 var isNow = $cb.is(':checked');
                 var $row = $cb.closest('tr');
-
                 $cb.prop('disabled', true);
-
                 $.ajax({
-                        url: 'items-list.php?action=toggle_active',
+                        url: 'inventory-list.php?action=toggle_active',
                         type: 'POST',
                         dataType: 'json',
                         data: {
@@ -472,21 +480,17 @@ while ($row = mysqli_fetch_assoc($result)) {
                         }
                     })
                     .done(function(res) {
-
                         if (!res.success) {
                             $cb.prop('checked', !isNow);
                             if (res.message) alert(res.message);
                             return;
                         }
-
                         $row.attr('data-active', res.active);
-
                         if (res.active === 1) {
                             $row.removeClass('row-inactive');
                         } else {
                             $row.addClass('row-inactive');
                         }
-
                         table.draw(false);
                     })
                     .fail(function() {
@@ -495,7 +499,6 @@ while ($row = mysqli_fetch_assoc($result)) {
                     .always(function() {
                         $cb.prop('disabled', false);
                     });
-
             });
 
         });

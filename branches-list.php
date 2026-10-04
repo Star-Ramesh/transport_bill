@@ -302,7 +302,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 
                         <?php if (hasPermission('branch.create')): ?>
                             <a href="branch.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-plus fa-sm text-white-50 mr-1"></i>
                                 Add Branch
                             </a>

@@ -1,7 +1,7 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
 requirePermission('lorry.view');
 
@@ -20,24 +20,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
     $id = (int) ($_POST['id'] ?? 0);
 
     if ($id <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Invalid lorry ID.']);
+        echo json_encode(['success' => false, 'message' => 'Invalid truck ID.']);
         exit;
-    }
-
-    $branchFilter = '';
-    if (!isAdmin()) {
-        $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-        $branchFilter = " AND branch_id = $myBranch";
     }
 
     $check = mysqli_query(
         $conn,
         "SELECT id, lorry_number, active FROM lorry
-         WHERE id = $id $branchFilter LIMIT 1"
+         WHERE id = $id LIMIT 1"
     );
 
     if (!$check || mysqli_num_rows($check) !== 1) {
-        echo json_encode(['success' => false, 'message' => 'Lorry not found.']);
+        echo json_encode(['success' => false, 'message' => 'Truck not found.']);
         exit;
     }
 
@@ -66,33 +60,26 @@ $flash = '';
 if (isset($_GET['msg'])) {
     switch ($_GET['msg']) {
         case 'added':
-            $flash = 'Lorry added successfully.';
+            $flash = 'Truck added successfully.';
             break;
         case 'updated':
-            $flash = 'Lorry updated successfully.';
+            $flash = 'Truck updated successfully.';
             break;
     }
 }
 
 /* =========================================================
-   DATA
+   PAGE DATA
    ========================================================= */
-$pageTitle = 'Lorries | Billing Portal';
+$pageTitle = 'Trucks | Billing Portal';
 
-$where = '';
-if (!isAdmin()) {
-    $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-    $where = "WHERE l.branch_id = $myBranch";
-}
-
-$sql = "SELECT l.id, l.branch_id, l.lorry_number, l.lorry_type, l.capacity,
-               l.owner_name, l.address, l.city, l.state, l.pincode,
-               l.active, l.created_at,
-               b.branch_name
-        FROM lorry l
-        LEFT JOIN branch b ON b.id = l.branch_id
-        $where
-        ORDER BY l.id DESC";
+/* Single-table SELECT — no JOINs */
+$sql = "SELECT id, lorry_number, lorry_type, capacity,
+               owner_name, address, city, state, pincode,
+               ownership_type, supplier_id, preferred_driver_id,
+               created_by, active, created_at
+        FROM lorry
+        ORDER BY id DESC";
 
 $result = mysqli_query($conn, $sql);
 if (!$result) die("Query failed: " . mysqli_error($conn));
@@ -101,6 +88,35 @@ $lorries = [];
 while ($row = mysqli_fetch_assoc($result)) {
     $lorries[] = $row;
 }
+
+/* Lookups */
+$supplierNames = [];
+$resSup = mysqli_query($conn, "SELECT id, supplier_name FROM supplier");
+if ($resSup) while ($s = mysqli_fetch_assoc($resSup)) $supplierNames[(int)$s['id']] = $s['supplier_name'];
+
+$driverNames = [];
+$resDrv = mysqli_query($conn, "SELECT id, driver_name FROM driver");
+if ($resDrv) while ($d = mysqli_fetch_assoc($resDrv)) $driverNames[(int)$d['id']] = $d['driver_name'];
+
+$userNames = [];
+$resU = mysqli_query($conn, "SELECT id, full_name, username FROM `user`");
+if ($resU) {
+    while ($u = mysqli_fetch_assoc($resU)) {
+        $userNames[(int)$u['id']] = $u['full_name'] ?: $u['username'];
+    }
+}
+
+/* Enrich */
+foreach ($lorries as &$l) {
+    $sid = (int) $l['supplier_id'];
+    $did = (int) $l['preferred_driver_id'];
+    $uid = (int) $l['created_by'];
+
+    $l['supplier_name']         = $sid > 0 ? ($supplierNames[$sid] ?? '') : '';
+    $l['preferred_driver_name'] = $did > 0 ? ($driverNames[$did]   ?? '') : '';
+    $l['created_by_name']       = $uid > 0 ? ($userNames[$uid]     ?? '') : '';
+}
+unset($l);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -162,10 +178,37 @@ while ($row = mysqli_fetch_assoc($result)) {
             letter-spacing: 0.02em;
         }
 
-        .lorry-owner,
-        .lorry-capacity {
+        .cell-muted {
             color: #3a3b45;
             font-weight: 500;
+        }
+
+        .ownership-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.28rem 0.7rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            border: 1px solid transparent;
+        }
+
+        .ownership-badge.own {
+            background-color: #e8fbf4;
+            color: #0c7d5b;
+            border-color: #c5f0e1;
+        }
+
+        .ownership-badge.third {
+            background-color: #fff3cd;
+            color: #856404;
+            border-color: #ffeeba;
+        }
+
+        .ownership-badge i {
+            font-size: 0.72rem;
         }
 
         .lorry-type-badge {
@@ -180,15 +223,15 @@ while ($row = mysqli_fetch_assoc($result)) {
             letter-spacing: 0.02em;
         }
 
-        .branch-badge {
+        .created-by-badge {
             display: inline-block;
             padding: 0.25rem 0.65rem;
             border-radius: 0.35rem;
             font-size: 0.8rem;
             font-weight: 600;
-            background-color: #e8fbf4;
-            color: #0c7d5b;
-            border: 1px solid #c5f0e1;
+            background-color: #eef2ff;
+            color: #3f51b5;
+            border: 1px solid #dbe2ff;
         }
 
         .cell-empty {
@@ -310,14 +353,14 @@ while ($row = mysqli_fetch_assoc($result)) {
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">
-                            <i class="fas fa-truck mr-2"></i>Lorries
+                            <i class="fas fa-truck mr-2"></i>Trucks
                         </h1>
 
                         <?php if (hasPermission('lorry.create')): ?>
                             <a href="lorry.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-plus fa-sm text-white-50 mr-1"></i>
-                                Add Lorry
+                                Add Truck
                             </a>
                         <?php endif; ?>
                     </div>
@@ -337,10 +380,7 @@ while ($row = mysqli_fetch_assoc($result)) {
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-list mr-1"></i>
-                                All Lorries
-                                <?php if (!isAdmin()): ?>
-                                    <span class="text-muted small ml-1">(your branch)</span>
-                                <?php endif; ?>
+                                All Trucks
                             </h6>
                         </div>
 
@@ -356,6 +396,12 @@ while ($row = mysqli_fetch_assoc($result)) {
                                 <li class="nav-item">
                                     <a class="nav-link" href="#" data-filter="inactive">Inactive</a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#" data-filter="own">Own</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#" data-filter="third">3rd Party</a>
+                                </li>
                             </ul>
 
                             <div class="table-responsive">
@@ -368,22 +414,25 @@ while ($row = mysqli_fetch_assoc($result)) {
                                     <thead class="thead-light">
                                         <tr>
                                             <th width="50">#</th>
-                                            <th>Lorry Number</th>
-                                            <th>Owner Name</th>
-                                            <th>Capacity</th>
+                                            <th>Truck Number</th>
+                                            <th>Ownership</th>
+                                            <th>Supplier</th>
+                                            <th>Preferred Driver</th>
                                             <th>Type</th>
-                                            <th>Branch</th>
+                                            <th>Created By</th>
                                             <th width="140" class="text-center">Action</th>
                                         </tr>
                                     </thead>
 
                                     <tbody>
                                         <?php foreach ($lorries as $i => $row):
-                                            $isActive = ((int) $row['active'] === 1);
+                                            $isActive   = ((int) $row['active'] === 1);
+                                            $isThird    = ((int) $row['ownership_type'] === 1);
                                         ?>
                                             <tr
                                                 data-id="<?= (int) $row['id'] ?>"
                                                 data-active="<?= $isActive ? '1' : '0' ?>"
+                                                data-ownership="<?= $isThird ? 'third' : 'own' ?>"
                                                 class="<?= $isActive ? '' : 'row-inactive' ?>">
 
                                                 <td class="text-muted small align-middle">
@@ -397,9 +446,23 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <?php if (!empty($row['owner_name'])): ?>
-                                                        <span class="lorry-owner">
-                                                            <?= htmlspecialchars($row['owner_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <?php if ($isThird): ?>
+                                                        <span class="ownership-badge third">
+                                                            <i class="fas fa-handshake"></i>
+                                                            <span>3rd Party</span>
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="ownership-badge own">
+                                                            <i class="fas fa-truck"></i>
+                                                            <span>Own</span>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </td>
+
+                                                <td class="align-middle">
+                                                    <?php if ($isThird && !empty($row['supplier_name'])): ?>
+                                                        <span class="cell-muted">
+                                                            <?= htmlspecialchars($row['supplier_name'], ENT_QUOTES, 'UTF-8') ?>
                                                         </span>
                                                     <?php else: ?>
                                                         <span class="cell-empty">—</span>
@@ -407,10 +470,10 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <?php if (!empty($row['capacity'])): ?>
-                                                        <span class="lorry-capacity">
-                                                            <i class="fas fa-weight-hanging text-gray-500 mr-1"></i>
-                                                            <?= htmlspecialchars($row['capacity'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <?php if (!empty($row['preferred_driver_name'])): ?>
+                                                        <span class="cell-muted">
+                                                            <i class="fas fa-id-card fa-xs text-gray-500 mr-1"></i>
+                                                            <?= htmlspecialchars($row['preferred_driver_name'], ENT_QUOTES, 'UTF-8') ?>
                                                         </span>
                                                     <?php else: ?>
                                                         <span class="cell-empty">—</span>
@@ -428,9 +491,9 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <?php if (!empty($row['branch_name'])): ?>
-                                                        <span class="branch-badge">
-                                                            <?= htmlspecialchars($row['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <?php if (!empty($row['created_by_name'])): ?>
+                                                        <span class="created-by-badge">
+                                                            <?= htmlspecialchars($row['created_by_name'], ENT_QUOTES, 'UTF-8') ?>
                                                         </span>
                                                     <?php else: ?>
                                                         <span class="text-muted small">—</span>
@@ -443,7 +506,7 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                         <?php if (hasPermission('lorry.edit')): ?>
                                                             <a href="lorry.php?id=<?= (int) $row['id'] ?>"
                                                                 class="btn btn-sm btn-primary"
-                                                                title="Edit lorry">
+                                                                title="Edit truck">
                                                                 <i class="fas fa-pen"></i>
                                                             </a>
                                                         <?php endif; ?>
@@ -502,16 +565,16 @@ while ($row = mysqli_fetch_assoc($result)) {
                 ],
                 columnDefs: [{
                     orderable: false,
-                    targets: [6]
+                    targets: [7]
                 }],
                 language: {
                     search: '',
-                    searchPlaceholder: 'Search lorries...',
+                    searchPlaceholder: 'Search trucks...',
                     lengthMenu: 'Show _MENU_',
                     info: 'Showing _START_ to _END_ of _TOTAL_',
-                    infoEmpty: 'No lorries',
+                    infoEmpty: 'No trucks',
                     infoFiltered: '(filtered from _MAX_)',
-                    zeroRecords: 'No matching lorries found',
+                    zeroRecords: 'No matching trucks found',
                     paginate: {
                         previous: '<i class="fas fa-chevron-left"></i>',
                         next: '<i class="fas fa-chevron-right"></i>'
@@ -524,9 +587,12 @@ while ($row = mysqli_fetch_assoc($result)) {
             $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
                 if (currentFilter === 'all') return true;
                 var rowNode = table.row(dataIndex).node();
-                var isActive = String($(rowNode).data('active')) === '1';
-                if (currentFilter === 'active') return isActive;
-                if (currentFilter === 'inactive') return !isActive;
+                var $r = $(rowNode);
+
+                if (currentFilter === 'active')   return String($r.data('active')) === '1';
+                if (currentFilter === 'inactive') return String($r.data('active')) === '0';
+                if (currentFilter === 'own')      return String($r.data('ownership')) === 'own';
+                if (currentFilter === 'third')    return String($r.data('ownership')) === 'third';
                 return true;
             });
 

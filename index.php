@@ -8,39 +8,33 @@ $pageTitle = 'Dashboard | Billing Portal';
 /* =========================================================
    Permission checks
    ========================================================= */
-$canSeeParties  = hasPermission('party.view');
-$canSeeLorries  = hasPermission('lorry.view');
-$canSeeBranches = hasPermission('branch.view');
-$canSeeDrivers  = hasPermission('driver.view');
-$canSeeVendors  = hasPermission('vendor.view');
-$canSeeItems    = hasPermission('item.view');
-$canSeeTrips    = hasPermission('trip.view');
-$canCreateTrip  = hasPermission('trip.create');
+$canSeeParties    = hasPermission('party.view');
+$canSeeLorries    = hasPermission('lorry.view');
+$canSeeBranches   = hasPermission('branch.view');
+$canSeeDrivers    = hasPermission('driver.view');
+$canSeeSuppliers  = hasPermission('supplier.view');
+$canSeeItems      = hasPermission('inventory.view');
+$canSeeTrips      = hasPermission('trip.view');
+$canCreateTrip    = hasPermission('trip.create');
 
 /* =========================================================
    Load counts (only if permitted)
    ========================================================= */
-$totalParties  = 0;
-$totalLorries  = 0;
-$totalBranches = 0;
-$totalDrivers  = 0;
-$totalVendors  = 0;
-$totalItems    = 0;
-$totalTrips    = 0;
-
-$branchFilter = '';
-if (!isAdmin()) {
-    $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-    $branchFilter = " AND branch_id = $myBranch";
-}
+$totalParties   = 0;
+$totalLorries   = 0;
+$totalBranches  = 0;
+$totalDrivers   = 0;
+$totalSuppliers = 0;
+$totalItems     = 0;
+$totalTrips     = 0;
 
 if ($canSeeParties) {
-    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM party WHERE active = 1$branchFilter");
+    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM party WHERE active = 1");
     $totalParties = $res ? (int) mysqli_fetch_assoc($res)['c'] : 0;
 }
 
 if ($canSeeLorries) {
-    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM lorry WHERE active = 1$branchFilter");
+    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM lorry WHERE active = 1");
     $totalLorries = $res ? (int) mysqli_fetch_assoc($res)['c'] : 0;
 }
 
@@ -50,21 +44,26 @@ if ($canSeeBranches) {
 }
 
 if ($canSeeDrivers) {
-    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM driver WHERE active = 1$branchFilter");
+    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM driver WHERE active = 1");
     $totalDrivers = $res ? (int) mysqli_fetch_assoc($res)['c'] : 0;
 }
 
-if ($canSeeVendors) {
-    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM vendor WHERE active = 1$branchFilter");
-    $totalVendors = $res ? (int) mysqli_fetch_assoc($res)['c'] : 0;
+if ($canSeeSuppliers) {
+    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM supplier WHERE active = 1");
+    $totalSuppliers = $res ? (int) mysqli_fetch_assoc($res)['c'] : 0;
 }
 
 if ($canSeeItems) {
-    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM item WHERE active = 1");
+    $res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM inventory WHERE active = 1");
     $totalItems = $res ? (int) mysqli_fetch_assoc($res)['c'] : 0;
 }
 
-/* Trips count — same branch-visibility rule as trips-list.php */
+/* =========================================================
+   Trip count — branch-scoped for non-admins
+   ---------------------------------------------------------
+   Trip now belongs to a single owning branch (trip.branch_id).
+   No more from_branch_id / to_branch_id.
+   ========================================================= */
 if ($canSeeTrips) {
 
     $tripWhere = '';
@@ -72,9 +71,7 @@ if ($canSeeTrips) {
     if (!hasPermission('trip.view.all')) {
         $myBranchId = (int) ($_SESSION['branch_id'] ?? 0);
         if ($myBranchId > 0) {
-            $tripWhere = " AND (branch_id = $myBranchId
-                             OR from_branch_id = $myBranchId
-                             OR to_branch_id   = $myBranchId)";
+            $tripWhere = " AND branch_id = $myBranchId";
         } else {
             $tripWhere = " AND 1=0";
         }
@@ -105,9 +102,6 @@ if ($canSeeTrips) {
     <?php include 'layout/header.php'; ?>
 
     <style>
-        /* =========================================================
-           STAT CARD — compact
-           ========================================================= */
         .stat-card {
             border-radius: 0.5rem;
             transition: transform .12s ease, box-shadow .12s ease;
@@ -118,9 +112,7 @@ if ($canSeeTrips) {
             box-shadow: 0 0.5rem 1.5rem 0 rgba(58, 59, 69, .18) !important;
         }
 
-        .stat-card .card-body {
-            padding: 1rem 1.15rem;
-        }
+        .stat-card .card-body { padding: 1rem 1.15rem; }
 
         .stat-card .stat-label {
             font-size: 0.68rem;
@@ -144,9 +136,6 @@ if ($canSeeTrips) {
             line-height: 1;
         }
 
-        /* =========================================================
-           TRIP CARD — the hero
-           ========================================================= */
         .trip-hero {
             background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
             color: #fff;
@@ -160,9 +149,7 @@ if ($canSeeTrips) {
         }
 
         .trip-hero::after {
-            /* Decorative watermark icon */
             content: "\f5d1";
-            /* fa-route */
             font-family: "Font Awesome 5 Free";
             font-weight: 900;
             position: absolute;
@@ -243,9 +230,6 @@ if ($canSeeTrips) {
             border-color: #ffffff;
         }
 
-        /* =========================================================
-           SECTION HEADING
-           ========================================================= */
         .section-heading {
             font-size: 0.72rem;
             font-weight: 800;
@@ -255,41 +239,17 @@ if ($canSeeTrips) {
             margin-bottom: 0.75rem;
         }
 
-        /* =========================================================
-           MOBILE TWEAKS
-           ========================================================= */
         @media (max-width: 991.98px) {
-            .trip-hero .trip-value {
-                font-size: 2.75rem;
-            }
-
-            .trip-hero .trip-hero-body {
-                padding: 1.25rem 1.5rem 1.5rem;
-            }
+            .trip-hero .trip-value { font-size: 2.75rem; }
+            .trip-hero .trip-hero-body { padding: 1.25rem 1.5rem 1.5rem; }
         }
 
         @media (max-width: 575.98px) {
-            .trip-hero .trip-value {
-                font-size: 2.25rem;
-            }
-
-            .trip-hero .trip-hero-body {
-                padding: 1.1rem 1.25rem 1.25rem;
-            }
-
-            .trip-hero::after {
-                font-size: 6rem;
-                right: -1rem;
-                bottom: -0.75rem;
-            }
-
-            .trip-hero .trip-hero-actions .btn {
-                width: 100%;
-            }
-
-            .stat-card .stat-value {
-                font-size: 1.4rem;
-            }
+            .trip-hero .trip-value { font-size: 2.25rem; }
+            .trip-hero .trip-hero-body { padding: 1.1rem 1.25rem 1.25rem; }
+            .trip-hero::after { font-size: 6rem; right: -1rem; bottom: -0.75rem; }
+            .trip-hero .trip-hero-actions .btn { width: 100%; }
+            .stat-card .stat-value { font-size: 1.4rem; }
         }
     </style>
 
@@ -309,21 +269,15 @@ if ($canSeeTrips) {
 
                 <div class="container-fluid">
 
-                    <!-- Page Heading -->
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">
                             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </h1>
                     </div>
 
-                    <!-- =========================================================
-                         MAIN ROW — Trip hero (left) + Masters (right)
-                         ========================================================= -->
                     <div class="row">
 
-                        <!-- ==================================================
-                             TRIP HERO — larger, colorful
-                             ================================================== -->
+                        <!-- TRIP HERO -->
                         <?php if ($canSeeTrips): ?>
                             <div class="col-lg-5 mb-4">
                                 <div class="trip-hero h-100">
@@ -341,7 +295,7 @@ if ($canSeeTrips) {
                                             <?php if (hasPermission('trip.view.all')): ?>
                                                 Across all branches
                                             <?php else: ?>
-                                                Trips touching your branch
+                                                Trips in your branch
                                             <?php endif; ?>
                                         </div>
 
@@ -361,10 +315,8 @@ if ($canSeeTrips) {
                             </div>
                         <?php endif; ?>
 
-                        <!-- ==================================================
-                             MASTERS — 2×2 grid on the right
-                             ================================================== -->
-                        <?php if ($canSeeParties || $canSeeLorries || $canSeeDrivers || $canSeeBranches): ?>
+                        <!-- MASTERS -->
+                        <?php if ($canSeeParties || $canSeeLorries || $canSeeDrivers || $canSeeSuppliers || $canSeeBranches || $canSeeItems): ?>
 
                             <div class="col-lg-7 mb-4">
                                 <div class="section-heading">
@@ -373,20 +325,15 @@ if ($canSeeTrips) {
 
                                 <div class="row">
 
-                                    <!-- Parties -->
                                     <?php if ($canSeeParties): ?>
-                                        <div class="col-sm-6 mb-3">
+                                        <div class="col-sm-6 col-xl-4 mb-3">
                                             <a href="parties-list.php" class="text-decoration-none text-reset">
                                                 <div class="card stat-card border-left-primary shadow h-100">
                                                     <div class="card-body">
                                                         <div class="row no-gutters align-items-center">
                                                             <div class="col mr-2">
-                                                                <div class="stat-label text-primary">
-                                                                    Parties
-                                                                </div>
-                                                                <div class="stat-value">
-                                                                    <?= $totalParties ?>
-                                                                </div>
+                                                                <div class="stat-label text-primary">Parties</div>
+                                                                <div class="stat-value"><?= $totalParties ?></div>
                                                             </div>
                                                             <div class="col-auto">
                                                                 <i class="fas fa-users stat-icon"></i>
@@ -398,20 +345,15 @@ if ($canSeeTrips) {
                                         </div>
                                     <?php endif; ?>
 
-                                    <!-- Lorries -->
                                     <?php if ($canSeeLorries): ?>
-                                        <div class="col-sm-6 mb-3">
+                                        <div class="col-sm-6 col-xl-4 mb-3">
                                             <a href="lorries-list.php" class="text-decoration-none text-reset">
                                                 <div class="card stat-card border-left-success shadow h-100">
                                                     <div class="card-body">
                                                         <div class="row no-gutters align-items-center">
                                                             <div class="col mr-2">
-                                                                <div class="stat-label text-success">
-                                                                    Lorries
-                                                                </div>
-                                                                <div class="stat-value">
-                                                                    <?= $totalLorries ?>
-                                                                </div>
+                                                                <div class="stat-label text-success">Trucks</div>
+                                                                <div class="stat-value"><?= $totalLorries ?></div>
                                                             </div>
                                                             <div class="col-auto">
                                                                 <i class="fas fa-truck stat-icon"></i>
@@ -423,20 +365,15 @@ if ($canSeeTrips) {
                                         </div>
                                     <?php endif; ?>
 
-                                    <!-- Drivers -->
                                     <?php if ($canSeeDrivers): ?>
-                                        <div class="col-sm-6 mb-3">
+                                        <div class="col-sm-6 col-xl-4 mb-3">
                                             <a href="drivers-list.php" class="text-decoration-none text-reset">
                                                 <div class="card stat-card border-left-info shadow h-100">
                                                     <div class="card-body">
                                                         <div class="row no-gutters align-items-center">
                                                             <div class="col mr-2">
-                                                                <div class="stat-label text-info">
-                                                                    Drivers
-                                                                </div>
-                                                                <div class="stat-value">
-                                                                    <?= $totalDrivers ?>
-                                                                </div>
+                                                                <div class="stat-label text-info">Drivers</div>
+                                                                <div class="stat-value"><?= $totalDrivers ?></div>
                                                             </div>
                                                             <div class="col-auto">
                                                                 <i class="fas fa-id-card stat-icon"></i>
@@ -448,23 +385,58 @@ if ($canSeeTrips) {
                                         </div>
                                     <?php endif; ?>
 
-                                    <!-- Branches -->
-                                    <?php if ($canSeeBranches): ?>
-                                        <div class="col-sm-6 mb-3">
-                                            <a href="branches-list.php" class="text-decoration-none text-reset">
+                                    <?php if ($canSeeSuppliers): ?>
+                                        <div class="col-sm-6 col-xl-4 mb-3">
+                                            <a href="suppliers-list.php" class="text-decoration-none text-reset">
                                                 <div class="card stat-card border-left-warning shadow h-100">
                                                     <div class="card-body">
                                                         <div class="row no-gutters align-items-center">
                                                             <div class="col mr-2">
-                                                                <div class="stat-label text-warning">
-                                                                    Branches
-                                                                </div>
-                                                                <div class="stat-value">
-                                                                    <?= $totalBranches ?>
-                                                                </div>
+                                                                <div class="stat-label text-warning">Suppliers</div>
+                                                                <div class="stat-value"><?= $totalSuppliers ?></div>
+                                                            </div>
+                                                            <div class="col-auto">
+                                                                <i class="fas fa-truck-loading stat-icon"></i>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ($canSeeBranches): ?>
+                                        <div class="col-sm-6 col-xl-4 mb-3">
+                                            <a href="branches-list.php" class="text-decoration-none text-reset">
+                                                <div class="card stat-card border-left-danger shadow h-100">
+                                                    <div class="card-body">
+                                                        <div class="row no-gutters align-items-center">
+                                                            <div class="col mr-2">
+                                                                <div class="stat-label text-danger">Branches</div>
+                                                                <div class="stat-value"><?= $totalBranches ?></div>
                                                             </div>
                                                             <div class="col-auto">
                                                                 <i class="fas fa-building stat-icon"></i>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ($canSeeItems): ?>
+                                        <div class="col-sm-6 col-xl-4 mb-3">
+                                            <a href="inventory-list.php" class="text-decoration-none text-reset">
+                                                <div class="card stat-card border-left-secondary shadow h-100">
+                                                    <div class="card-body">
+                                                        <div class="row no-gutters align-items-center">
+                                                            <div class="col mr-2">
+                                                                <div class="stat-label text-secondary">Inventory</div>
+                                                                <div class="stat-value"><?= $totalItems ?></div>
+                                                            </div>
+                                                            <div class="col-auto">
+                                                                <i class="fas fa-box stat-icon"></i>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -480,19 +452,13 @@ if ($canSeeTrips) {
 
                     </div>
 
-                    <!-- =========================================================
-                         Empty state when nothing is visible
-                         ========================================================= -->
-                    <?php if (!$canSeeParties && !$canSeeLorries && !$canSeeDrivers && !$canSeeBranches && !$canSeeTrips): ?>
+                    <!-- Empty state -->
+                    <?php if (!$canSeeParties && !$canSeeLorries && !$canSeeDrivers && !$canSeeSuppliers && !$canSeeBranches && !$canSeeItems && !$canSeeTrips): ?>
                         <div class="card shadow mb-4">
                             <div class="card-body text-center py-5">
                                 <i class="fas fa-user-circle fa-4x text-gray-300 mb-3"></i>
-                                <h5 class="text-gray-800 mb-2">
-                                    No dashboard cards available
-                                </h5>
-                                <p class="text-muted mb-0">
-                                    Contact your administrator to grant you access.
-                                </p>
+                                <h5 class="text-gray-800 mb-2">No dashboard cards available</h5>
+                                <p class="text-muted mb-0">Contact your administrator to grant you access.</p>
                             </div>
                         </div>
                     <?php endif; ?>

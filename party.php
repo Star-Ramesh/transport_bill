@@ -3,16 +3,11 @@
 include 'constant.php';
 include 'session.php';
 
-/* =========================================================
-   DETERMINE MODE — Add or Edit
-   ========================================================= */
 $editId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $isEdit = $editId > 0;
 
-/* Popup mode — rendered inside an iframe from trip.php */
 $isPopup = isset($_GET['popup']) && (int) $_GET['popup'] === 1;
 
-/* Return-to-sender (kept — dormant unless ?return= is present) */
 $return_to = isset($_GET['return'])
     ? preg_replace('/[^a-z0-9_\-\.]/i', '', $_GET['return'])
     : '';
@@ -21,18 +16,13 @@ requirePermission($isEdit ? 'party.edit' : 'party.create');
 
 $pageTitle = $isEdit ? 'Edit Party | Billing Portal' : 'Add Party | Billing Portal';
 
-/* =========================================================
-   FORM STATE
-   ========================================================= */
 $error     = '';
 $errorList = [];
 
-/* Popup result holders — declared up front */
 $popup_saved_id    = 0;
 $popup_saved_label = '';
 
 $old = [
-    'branch_id'  => 0,
     'gstin'      => '',
     'legal_name' => '',
     'trade_name' => '',
@@ -46,9 +36,7 @@ $old = [
     'active'     => 1,
 ];
 
-/* =========================================================
-   LOAD (Edit mode)
-   ========================================================= */
+/* LOAD (Edit mode) */
 if ($isEdit) {
 
     $res = mysqli_query($conn, "SELECT * FROM party WHERE id = $editId LIMIT 1");
@@ -64,7 +52,6 @@ if ($isEdit) {
 
     $row = mysqli_fetch_assoc($res);
 
-    $old['branch_id']  = (int) ($row['branch_id'] ?? 0);
     $old['gstin']      = $row['gstin']      ?? '';
     $old['legal_name'] = $row['legal_name'] ?? '';
     $old['trade_name'] = $row['trade_name'] ?? '';
@@ -78,31 +65,13 @@ if ($isEdit) {
     $old['active']     = (int) ($row['active'] ?? 1);
 }
 
-/* =========================================================
-   BRANCH DROPDOWN
-   ========================================================= */
-$branches = [];
-$resB = mysqli_query(
-    $conn,
-    "SELECT id, branch_name FROM branch WHERE active = 1 ORDER BY branch_name"
-);
-if ($resB) {
-    while ($b = mysqli_fetch_assoc($resB)) {
-        $branches[] = $b;
-    }
-}
-
-/* =========================================================
-   HANDLE SUBMIT
-   ========================================================= */
+/* SUBMIT */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    /* Popup mode may come in via POST as a hidden field */
     if (isset($_POST['popup_mode']) && (int) $_POST['popup_mode'] === 1) {
         $isPopup = true;
     }
 
-    $old['branch_id']  = (int) ($_POST['branch_id'] ?? 0);
     $old['gstin']      = strtoupper(trim($_POST['gstin']      ?? ''));
     $old['legal_name'] = trim($_POST['legal_name'] ?? '');
     $old['trade_name'] = trim($_POST['trade_name'] ?? '');
@@ -115,16 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['status']     = trim($_POST['status']     ?? '');
     $old['active']     = isset($_POST['active']) ? (int) $_POST['active'] : 1;
 
-    /* Return-to-sender: prefer posted value over GET */
     if (isset($_POST['return_to'])) {
         $return_to = preg_replace('/[^a-z0-9_\-\.]/i', '', $_POST['return_to']);
     }
 
     /* Validate */
-    if ($old['branch_id'] <= 0) {
-        $errorList[] = 'Please select a branch.';
-    }
-
     if ($old['legal_name'] === '') {
         $errorList[] = 'Legal name is required.';
     }
@@ -160,22 +124,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errorList[] = 'Address is too long (max 500).';
     }
 
-    /* Duplicate GSTIN check */
+    /* Duplicate GSTIN */
     if (empty($errorList) && $old['gstin'] !== '') {
-
         $gstin_safe = mysqli_real_escape_string($conn, $old['gstin']);
-
-        $sqlDup = "SELECT id FROM party
-                   WHERE UPPER(gstin) = UPPER('$gstin_safe')";
-
-        if ($isEdit) {
-            $sqlDup .= " AND id <> $editId";
-        }
-
+        $sqlDup = "SELECT id FROM party WHERE UPPER(gstin) = UPPER('$gstin_safe')";
+        if ($isEdit) $sqlDup .= " AND id <> $editId";
         $sqlDup .= " LIMIT 1";
 
         $dup = mysqli_query($conn, $sqlDup);
-
         if (!$dup) {
             $errorList[] = 'Database error: ' . mysqli_error($conn);
         } elseif (mysqli_num_rows($dup) > 0) {
@@ -183,14 +139,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    /* Insert or Update */
+    /* Save */
     if (empty($errorList)) {
 
         $esc = function ($v) use ($conn) {
             return mysqli_real_escape_string($conn, $v);
         };
 
-        $branch_v     = (int) $old['branch_id'];
         $gstin_v      = $old['gstin']      !== '' ? "'" . $esc($old['gstin'])      . "'" : "NULL";
         $trade_name_v = $old['trade_name'] !== '' ? "'" . $esc($old['trade_name']) . "'" : "NULL";
         $address_v    = $old['address']    !== '' ? "'" . $esc($old['address'])    . "'" : "NULL";
@@ -206,7 +161,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($isEdit) {
 
             $sql = "UPDATE party SET
-                        branch_id  = $branch_v,
                         gstin      = $gstin_v,
                         legal_name = $legal_name_v,
                         trade_name = $trade_name_v,
@@ -233,13 +187,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
 
+            $created_by = (int) ($_SESSION['user_id'] ?? 0);
+
             $sql = "INSERT INTO party
-                        (branch_id, gstin, legal_name, trade_name, address, city, state,
-                         pincode, phone, email, status, active)
+                        (gstin, legal_name, trade_name, address, city, state,
+                         pincode, phone, email, status, created_by, active)
                     VALUES
-                        ($branch_v, $gstin_v, $legal_name_v, $trade_name_v, $address_v,
+                        ($gstin_v, $legal_name_v, $trade_name_v, $address_v,
                          $city_v, $state_v, $pincode_v, $phone_v, $email_v,
-                         $status_v, $active_v)";
+                         $status_v, $created_by, $active_v)";
 
             if (mysqli_query($conn, $sql)) {
 
@@ -269,9 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-/* =========================================================
-   POPUP MODE — send postMessage to parent on success
-   ========================================================= */
+/* Popup postMessage */
 $popupPostScript = '';
 if ($isPopup && $popup_saved_id > 0) {
     $safeId    = (int) $popup_saved_id;
@@ -309,21 +263,10 @@ JS;
 
     <?php if ($isPopup): ?>
         <style>
-            body {
-                background: #fff;
-            }
-
-            #wrapper {
-                display: block;
-            }
-
-            #content-wrapper {
-                margin-left: 0 !important;
-            }
-
-            .container-fluid {
-                padding: 1rem 1.25rem;
-            }
+            body { background: #fff; }
+            #wrapper { display: block; }
+            #content-wrapper { margin-left: 0 !important; }
+            .container-fluid { padding: 1rem 1.25rem; }
         </style>
     <?php endif; ?>
 
@@ -333,9 +276,6 @@ JS;
 
     <?php if ($isPopup): ?>
 
-        <!-- =========================================================
-         POPUP MODE — no chrome, form only
-         ========================================================= -->
         <div class="container-fluid">
 
             <?php if ($error !== ''): ?>
@@ -453,21 +393,6 @@ JS;
 
                         <div class="form-row">
                             <div class="form-group col-md-6">
-                                <label for="branch_id">
-                                    Branch <span class="text-danger">*</span>
-                                </label>
-                                <select id="branch_id" name="branch_id" class="form-control">
-                                    <option value="">— Select Branch —</option>
-                                    <?php foreach ($branches as $b): ?>
-                                        <option value="<?= (int) $b['id'] ?>"
-                                            <?= $old['branch_id'] === (int) $b['id'] ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($b['branch_name'], ENT_QUOTES, 'UTF-8') ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="form-group col-md-6">
                                 <label for="legal_name">
                                     Legal Name <span class="text-danger">*</span>
                                 </label>
@@ -476,9 +401,7 @@ JS;
                                     placeholder="Enter legal name"
                                     value="<?= htmlspecialchars($old['legal_name'], ENT_QUOTES, 'UTF-8') ?>">
                             </div>
-                        </div>
 
-                        <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label for="trade_name">Trade Name</label>
                                 <input type="text" id="trade_name" name="trade_name"
@@ -486,7 +409,9 @@ JS;
                                     placeholder="Enter trade name"
                                     value="<?= htmlspecialchars($old['trade_name'], ENT_QUOTES, 'UTF-8') ?>">
                             </div>
+                        </div>
 
+                        <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label for="phone">Phone</label>
                                 <input type="text" id="phone" name="phone"
@@ -494,14 +419,14 @@ JS;
                                     placeholder="Enter phone number"
                                     value="<?= htmlspecialchars($old['phone'], ENT_QUOTES, 'UTF-8') ?>">
                             </div>
-                        </div>
 
-                        <div class="form-group">
-                            <label for="email">Email Address</label>
-                            <input type="text" id="email" name="email"
-                                class="form-control" maxlength="150"
-                                placeholder="Enter email address"
-                                value="<?= htmlspecialchars($old['email'], ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="form-group col-md-6">
+                                <label for="email">Email Address</label>
+                                <input type="text" id="email" name="email"
+                                    class="form-control" maxlength="150"
+                                    placeholder="Enter email address"
+                                    value="<?= htmlspecialchars($old['email'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -585,9 +510,6 @@ JS;
 
     <?php else: ?>
 
-        <!-- =========================================================
-         NORMAL MODE — full app chrome
-         ========================================================= -->
         <div id="wrapper">
 
             <?php include 'layout/sidebar.php'; ?>
@@ -607,7 +529,7 @@ JS;
                             </h1>
 
                             <a href="parties-list.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-secondary shadow-sm">
                                 <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i>
                                 Back to Parties
                             </a>
@@ -712,23 +634,6 @@ JS;
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label for="branch_id">
-                                                    Branch <span class="text-danger">*</span>
-                                                </label>
-                                                <select id="branch_id" name="branch_id" class="form-control">
-                                                    <option value="">— Select Branch —</option>
-                                                    <?php foreach ($branches as $b): ?>
-                                                        <option value="<?= (int) $b['id'] ?>"
-                                                            <?= $old['branch_id'] === (int) $b['id'] ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($b['branch_name'], ENT_QUOTES, 'UTF-8') ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </div>
-                                        </div>
-
                                         <div class="col-md-6">
                                             <div class="form-group">
                                                 <label for="legal_name">

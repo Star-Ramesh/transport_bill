@@ -225,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?= $isEdit ? 'Edit User' : 'Add User' ?>
                         </h1>
                         <a href="users-list.php"
-                            class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                            class="d-inline-block btn btn-sm btn-secondary shadow-sm">
                             <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i>
                             Back to Users
                         </a>

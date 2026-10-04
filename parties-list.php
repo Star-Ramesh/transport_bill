@@ -1,12 +1,12 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
 requirePermission('party.view');
 
 /* =========================================================
-   AJAX ENDPOINT — toggle active
+   AJAX — toggle active
    ========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
 
@@ -24,16 +24,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_active') {
         exit;
     }
 
-    $branchFilter = '';
-    if (!isAdmin()) {
-        $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-        $branchFilter = " AND branch_id = $myBranch";
-    }
-
     $check = mysqli_query(
         $conn,
-        "SELECT id, legal_name, active FROM party
-         WHERE id = $id $branchFilter LIMIT 1"
+        "SELECT id, legal_name, active FROM party WHERE id = $id LIMIT 1"
     );
 
     if (!$check || mysqli_num_rows($check) !== 1) {
@@ -81,20 +74,12 @@ if (isset($_GET['msg'])) {
    ========================================================= */
 $pageTitle = 'Parties | Billing Portal';
 
-$where = '';
-if (!isAdmin()) {
-    $myBranch = (int) ($_SESSION['branch_id'] ?? 0);
-    $where = "WHERE p.branch_id = $myBranch";
-}
-
-$sql = "SELECT p.id, p.branch_id, p.gstin, p.legal_name, p.trade_name,
-               p.address, p.city, p.state, p.pincode, p.phone, p.email,
-               p.active, p.created_at,
-               b.branch_name
-        FROM party p
-        LEFT JOIN branch b ON b.id = p.branch_id
-        $where
-        ORDER BY p.id DESC";
+/* Single-table SELECT — no JOINs */
+$sql = "SELECT id, gstin, legal_name, trade_name,
+               address, city, state, pincode, phone, email,
+               status, created_by, active, created_at
+        FROM party
+        ORDER BY id DESC";
 
 $result = mysqli_query($conn, $sql);
 if (!$result) die("Query failed: " . mysqli_error($conn));
@@ -103,6 +88,21 @@ $parties = [];
 while ($row = mysqli_fetch_assoc($result)) {
     $parties[] = $row;
 }
+
+/* Enrich with creator names */
+$userNames = [];
+$resU = mysqli_query($conn, "SELECT id, full_name, username FROM `user`");
+if ($resU) {
+    while ($u = mysqli_fetch_assoc($resU)) {
+        $userNames[(int)$u['id']] = $u['full_name'] ?: $u['username'];
+    }
+}
+
+foreach ($parties as &$p) {
+    $uid = (int) $p['created_by'];
+    $p['created_by_name'] = $uid > 0 ? ($userNames[$uid] ?? '') : '';
+}
+unset($p);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -173,15 +173,15 @@ while ($row = mysqli_fetch_assoc($result)) {
             color: #3a3b45;
         }
 
-        .branch-badge {
+        .created-by-badge {
             display: inline-block;
             padding: 0.25rem 0.65rem;
             border-radius: 0.35rem;
             font-size: 0.8rem;
             font-weight: 600;
-            background-color: #e8fbf4;
-            color: #0c7d5b;
-            border: 1px solid #c5f0e1;
+            background-color: #eef2ff;
+            color: #3f51b5;
+            border: 1px solid #dbe2ff;
         }
 
         .contact-cell a {
@@ -313,7 +313,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 
                         <?php if (hasPermission('party.create')): ?>
                             <a href="party.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-user-plus fa-sm text-white-50 mr-1"></i>
                                 Add Party
                             </a>
@@ -336,9 +336,6 @@ while ($row = mysqli_fetch_assoc($result)) {
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-list mr-1"></i>
                                 All Parties
-                                <?php if (!isAdmin()): ?>
-                                    <span class="text-muted small ml-1">(your branch)</span>
-                                <?php endif; ?>
                             </h6>
                         </div>
 
@@ -370,7 +367,7 @@ while ($row = mysqli_fetch_assoc($result)) {
                                             <th>GSTIN</th>
                                             <th>Contact</th>
                                             <th>Location</th>
-                                            <th>Branch</th>
+                                            <th>Created By</th>
                                             <th width="140" class="text-center">Action</th>
                                         </tr>
                                     </thead>
@@ -437,9 +434,9 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <?php if (!empty($row['branch_name'])): ?>
-                                                        <span class="branch-badge">
-                                                            <?= htmlspecialchars($row['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <?php if (!empty($row['created_by_name'])): ?>
+                                                        <span class="created-by-badge">
+                                                            <?= htmlspecialchars($row['created_by_name'], ENT_QUOTES, 'UTF-8') ?>
                                                         </span>
                                                     <?php else: ?>
                                                         <span class="text-muted small">—</span>

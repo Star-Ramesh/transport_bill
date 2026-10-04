@@ -1,7 +1,7 @@
 <?php
 
-include 'constant.php';
 include 'session.php';
+include 'constant.php';
 
 requirePermission('driver.view');
 
@@ -72,12 +72,11 @@ if (isset($_GET['msg'])) {
    ========================================================= */
 $pageTitle = 'Drivers | Billing Portal';
 
-$sql = "SELECT d.id, d.driver_name, d.phone, d.license_no, d.license_expiry,
-               d.city, d.state, d.active, d.created_at,
-               b.branch_name
-        FROM driver d
-        LEFT JOIN branch b ON b.id = d.branch_id
-        ORDER BY d.id DESC";
+/* Single-table SELECT — no JOINs */
+$sql = "SELECT id, driver_name, phone, license_no, license_expiry,
+               city, state, preferred_lorry_id, created_by, active, created_at
+        FROM driver
+        ORDER BY id DESC";
 
 $result = mysqli_query($conn, $sql);
 if (!$result) die("Query failed: " . mysqli_error($conn));
@@ -86,6 +85,29 @@ $drivers = [];
 while ($row = mysqli_fetch_assoc($result)) {
     $drivers[] = $row;
 }
+
+/* Lorry numbers */
+$lorryNumbers = [];
+$resL = mysqli_query($conn, "SELECT id, lorry_number FROM lorry");
+if ($resL) while ($l = mysqli_fetch_assoc($resL)) $lorryNumbers[(int)$l['id']] = $l['lorry_number'];
+
+/* User names */
+$userNames = [];
+$resU = mysqli_query($conn, "SELECT id, full_name, username FROM `user`");
+if ($resU) {
+    while ($u = mysqli_fetch_assoc($resU)) {
+        $userNames[(int)$u['id']] = $u['full_name'] ?: $u['username'];
+    }
+}
+
+/* Enrich */
+foreach ($drivers as &$d) {
+    $lid = (int) $d['preferred_lorry_id'];
+    $uid = (int) $d['created_by'];
+    $d['preferred_lorry_number'] = $lid > 0 ? ($lorryNumbers[$lid] ?? '') : '';
+    $d['created_by_name']        = $uid > 0 ? ($userNames[$uid]    ?? '') : '';
+}
+unset($d);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -104,7 +126,6 @@ while ($row = mysqli_fetch_assoc($result)) {
         href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
 
     <style>
-        /* Inactive row tint */
         table.dataTable tbody tr.row-inactive>td {
             background-color: #fdecea !important;
             color: #842029;
@@ -114,7 +135,6 @@ while ($row = mysqli_fetch_assoc($result)) {
             background-color: #fbd9d4 !important;
         }
 
-        /* Readability */
         #driversTable {
             font-size: 0.95rem;
         }
@@ -163,7 +183,7 @@ while ($row = mysqli_fetch_assoc($result)) {
             color: #3a3b45;
         }
 
-        .branch-badge {
+        .truck-badge {
             display: inline-block;
             padding: 0.25rem 0.65rem;
             border-radius: 0.35rem;
@@ -172,9 +192,20 @@ while ($row = mysqli_fetch_assoc($result)) {
             background-color: #e8fbf4;
             color: #0c7d5b;
             border: 1px solid #c5f0e1;
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
         }
 
-        /* License expiry warning */
+        .created-by-badge {
+            display: inline-block;
+            padding: 0.25rem 0.65rem;
+            border-radius: 0.35rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background-color: #eef2ff;
+            color: #3f51b5;
+            border: 1px solid #dbe2ff;
+        }
+
         .license-warning {
             display: inline-block;
             padding: 0.15rem 0.5rem;
@@ -196,7 +227,6 @@ while ($row = mysqli_fetch_assoc($result)) {
             border: 1px solid #ffecb5;
         }
 
-        /* Toggle switch */
         .switch {
             position: relative;
             display: inline-block;
@@ -249,7 +279,6 @@ while ($row = mysqli_fetch_assoc($result)) {
             cursor: not-allowed;
         }
 
-        /* Filter pills */
         #activeFilter .nav-link {
             padding: .35rem 1rem;
             border-radius: 2rem;
@@ -264,7 +293,6 @@ while ($row = mysqli_fetch_assoc($result)) {
             font-weight: 600;
         }
 
-        /* DataTables tweaks */
         .dataTables_wrapper .dataTables_filter input {
             border: 1px solid #d1d3e2;
             border-radius: .35rem;
@@ -318,7 +346,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 
                         <?php if (hasPermission('driver.create')): ?>
                             <a href="driver.php"
-                                class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                                class="d-inline-block btn btn-sm btn-primary shadow-sm">
                                 <i class="fas fa-user-plus fa-sm text-white-50 mr-1"></i>
                                 Add Driver
                             </a>
@@ -371,7 +399,8 @@ while ($row = mysqli_fetch_assoc($result)) {
                                             <th>Driver Name</th>
                                             <th>Phone</th>
                                             <th>License</th>
-                                            <th>Branch</th>
+                                            <th>Preferred Truck</th>
+                                            <th>Created By</th>
                                             <th width="140" class="text-center">Action</th>
                                         </tr>
                                     </thead>
@@ -380,7 +409,6 @@ while ($row = mysqli_fetch_assoc($result)) {
                                         <?php foreach ($drivers as $i => $row):
                                             $isActive = ((int) $row['active'] === 1);
 
-                                            /* License expiry check */
                                             $licenseWarning = '';
                                             $licenseClass   = '';
                                             if (!empty($row['license_expiry'])) {
@@ -440,9 +468,19 @@ while ($row = mysqli_fetch_assoc($result)) {
                                                 </td>
 
                                                 <td class="align-middle">
-                                                    <?php if (!empty($row['branch_name'])): ?>
-                                                        <span class="branch-badge">
-                                                            <?= htmlspecialchars($row['branch_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <?php if (!empty($row['preferred_lorry_number'])): ?>
+                                                        <span class="truck-badge">
+                                                            <?= htmlspecialchars($row['preferred_lorry_number'], ENT_QUOTES, 'UTF-8') ?>
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted small">—</span>
+                                                    <?php endif; ?>
+                                                </td>
+
+                                                <td class="align-middle">
+                                                    <?php if (!empty($row['created_by_name'])): ?>
+                                                        <span class="created-by-badge">
+                                                            <?= htmlspecialchars($row['created_by_name'], ENT_QUOTES, 'UTF-8') ?>
                                                         </span>
                                                     <?php else: ?>
                                                         <span class="text-muted small">—</span>
@@ -513,7 +551,7 @@ while ($row = mysqli_fetch_assoc($result)) {
                 ],
                 columnDefs: [{
                     orderable: false,
-                    targets: [5]
+                    targets: [6]
                 }],
                 language: {
                     search: '',

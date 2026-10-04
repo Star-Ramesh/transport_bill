@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?= $isEdit ? 'Edit Vendor' : 'Add Vendor' ?>
                         </h1>
                         <a href="vendors-list.php"
-                            class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                            class="d-inline-block btn btn-sm btn-secondary shadow-sm">
                             <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i>
                             Back to Vendors
                         </a>

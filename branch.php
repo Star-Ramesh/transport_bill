@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </h1>
 
                         <a href="branches-list.php"
-                            class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                            class="d-inline-block btn btn-sm btn-secondary shadow-sm">
                             <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i>
                             Back to Branches
                         </a>

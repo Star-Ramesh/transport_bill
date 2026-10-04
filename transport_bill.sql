@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 23, 2026 at 12:52 PM
+-- Generation Time: Oct 04, 2026 at 11:04 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -54,6 +54,74 @@ INSERT INTO `branch` (`id`, `branch_name`, `branch_code`, `address`, `city`, `st
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `city`
+--
+
+CREATE TABLE `city` (
+  `id` int(11) NOT NULL,
+  `city_name` varchar(100) NOT NULL,
+  `use_count` int(11) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `city`
+--
+
+INSERT INTO `city` (`id`, `city_name`, `use_count`, `active`, `created_at`, `updated_at`) VALUES
+(1, 'Bolpur', 2, 1, '2026-09-30 05:56:48', '2026-09-30 07:19:35'),
+(2, 'Kolkata', 0, 1, '2026-09-30 05:56:48', '2026-09-30 05:56:48'),
+(3, 'Jharkhand', 0, 1, '2026-09-30 05:56:48', '2026-09-30 05:56:48'),
+(4, 'Asansol', 5, 1, '2026-09-30 06:04:52', '2026-10-04 05:28:45'),
+(5, 'Murshidabad', 1, 1, '2026-09-30 07:19:35', '2026-09-30 07:19:35'),
+(6, 'Burdwan', 1, 1, '2026-09-30 08:44:42', '2026-09-30 08:44:42'),
+(7, 'Durgapur', 5, 1, '2026-09-30 08:44:42', '2026-10-04 05:28:45');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `consignment`
+--
+
+CREATE TABLE `consignment` (
+  `id` int(11) NOT NULL,
+  `consignment_no` varchar(50) NOT NULL,
+  `consignment_date` date NOT NULL,
+  `consignor_party_id` int(11) NOT NULL,
+  `consignee_party_id` int(11) NOT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  `branch_id` int(11) NOT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `consignment_inventory`
+--
+
+CREATE TABLE `consignment_inventory` (
+  `id` int(11) NOT NULL,
+  `consignment_id` int(11) NOT NULL,
+  `inventory_id` int(11) DEFAULT NULL,
+  `inventory_name` varchar(100) NOT NULL,
+  `unit` varchar(20) DEFAULT NULL,
+  `quantity` int(11) NOT NULL DEFAULT 0,
+  `rate` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `amount` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `driver`
 --
 
@@ -67,19 +135,12 @@ CREATE TABLE `driver` (
   `city` varchar(50) DEFAULT NULL,
   `state` varchar(50) DEFAULT NULL,
   `pincode` char(6) DEFAULT NULL,
-  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `preferred_lorry_id` int(11) DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_by` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `driver`
---
-
-INSERT INTO `driver` (`id`, `driver_name`, `phone`, `license_no`, `license_expiry`, `address`, `city`, `state`, `pincode`, `branch_id`, `active`, `created_at`, `updated_at`) VALUES
-(1, 'Ramesh Ghosh', '08101764369', 'WB006813655626', NULL, 'DEWAR, SAHORA, BURWAN, MURSHIDABAD, 731234', 'DEWAR', 'West Bengal', '731234', 1, 1, '2026-09-23 15:21:53', '2026-09-23 15:21:53'),
-(2, 'Ricky Ghosh', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 3, 1, '2026-09-23 16:12:19', '2026-09-23 16:12:19');
 
 -- --------------------------------------------------------
 
@@ -93,7 +154,7 @@ CREATE TABLE `expense` (
   `expense_date` date NOT NULL,
   `category` varchar(50) NOT NULL,
   `amount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `vendor_id` int(11) DEFAULT NULL,
+  `supplier_id` int(11) DEFAULT NULL,
   `notes` varchar(255) DEFAULT NULL,
   `branch_id` int(11) NOT NULL,
   `created_by` int(11) DEFAULT NULL,
@@ -102,23 +163,18 @@ CREATE TABLE `expense` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `expense`
---
-
-INSERT INTO `expense` (`id`, `trip_id`, `expense_date`, `category`, `amount`, `vendor_id`, `notes`, `branch_id`, `created_by`, `active`, `created_at`, `updated_at`) VALUES
-(1, 1, '2026-09-23', 'Parking', 50.00, NULL, 'Parking Fee', 1, 1, 1, '2026-09-23 10:18:46', '2026-09-23 10:18:46');
-
 -- --------------------------------------------------------
 
 --
--- Table structure for table `item`
+-- Table structure for table `inventory`
 --
 
-CREATE TABLE `item` (
+CREATE TABLE `inventory` (
   `id` int(10) UNSIGNED NOT NULL,
+  `branch_id` int(11) DEFAULT NULL,
   `item_name` varchar(80) NOT NULL,
   `unit` varchar(20) DEFAULT NULL,
+  `rate` decimal(12,2) NOT NULL DEFAULT 0.00,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
@@ -132,9 +188,11 @@ CREATE TABLE `item` (
 
 CREATE TABLE `lorry` (
   `id` int(10) UNSIGNED NOT NULL,
-  `branch_id` int(10) UNSIGNED DEFAULT NULL,
   `lorry_number` varchar(15) NOT NULL,
   `lorry_type` varchar(20) DEFAULT NULL,
+  `ownership_type` tinyint(1) NOT NULL DEFAULT 0,
+  `supplier_id` int(11) DEFAULT NULL,
+  `preferred_driver_id` int(11) DEFAULT NULL,
   `capacity` varchar(15) DEFAULT NULL,
   `owner_name` varchar(100) DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
@@ -142,17 +200,10 @@ CREATE TABLE `lorry` (
   `state` varchar(50) DEFAULT NULL,
   `pincode` char(6) DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_by` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `lorry`
---
-
-INSERT INTO `lorry` (`id`, `branch_id`, `lorry_number`, `lorry_type`, `capacity`, `owner_name`, `address`, `city`, `state`, `pincode`, `active`, `created_at`, `updated_at`) VALUES
-(1, 1, 'WB58BW8073', 'Open', '10 Ton', 'Ramesh Ghosh', NULL, NULL, NULL, NULL, 1, '2026-09-23 15:21:21', '2026-09-23 15:21:21'),
-(2, 3, 'WB55SD8045', 'Tanker', '5 TON', 'Ricky Ghosh', NULL, NULL, NULL, NULL, 1, '2026-09-23 16:11:57', '2026-09-23 16:11:57');
 
 -- --------------------------------------------------------
 
@@ -162,7 +213,6 @@ INSERT INTO `lorry` (`id`, `branch_id`, `lorry_number`, `lorry_type`, `capacity`
 
 CREATE TABLE `party` (
   `id` int(10) UNSIGNED NOT NULL,
-  `branch_id` int(10) UNSIGNED DEFAULT NULL,
   `gstin` varchar(15) DEFAULT NULL,
   `legal_name` varchar(255) NOT NULL,
   `trade_name` varchar(255) DEFAULT NULL,
@@ -173,19 +223,27 @@ CREATE TABLE `party` (
   `phone` varchar(15) DEFAULT NULL,
   `email` varchar(150) DEFAULT NULL,
   `status` varchar(50) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `active` tinyint(4) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `party`
+-- Table structure for table `party_rate`
 --
 
-INSERT INTO `party` (`id`, `branch_id`, `gstin`, `legal_name`, `trade_name`, `address`, `city`, `state`, `pincode`, `phone`, `email`, `status`, `created_at`, `updated_at`, `active`) VALUES
-(1, 1, '19GNLPS2005D1ZZ', 'Rina Saha', 'Playbees Technologies', 'Ward 6, House 456, Ground Floor, Udayanpally, Bolpur', 'Bolpur', NULL, '731204', NULL, NULL, 'Active', '2026-09-23 15:43:59', '2026-09-23 15:43:59', 1),
-(2, 2, '19AMFPT0703N1ZQ', 'Dipak Mishra', 'Dipak Transport', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-23 15:55:51', '2026-09-23 15:55:51', 1),
-(3, 3, '19GNLPS2005D1ZU', 'Subhojit Ptamanick', 'JH Ciment', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-23 16:14:40', '2026-09-23 16:14:40', 1);
+CREATE TABLE `party_rate` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `party_id` int(10) UNSIGNED NOT NULL,
+  `inventory_id` int(10) UNSIGNED NOT NULL,
+  `rate` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -247,11 +305,19 @@ INSERT INTO `permission` (`id`, `perm_key`, `perm_name`, `perm_group`, `sort_ord
 (43, 'vendor.create', 'Create Vendor', 'Vendor', 20),
 (44, 'vendor.edit', 'Edit Vendor', 'Vendor', 30),
 (45, 'vendor.delete', 'Delete Vendor', 'Vendor', 40),
-(50, 'item.view', 'View Items', 'Item', 10),
-(51, 'item.create', 'Create Item', 'Item', 20),
-(52, 'item.edit', 'Edit Item', 'Item', 30),
-(53, 'item.delete', 'Delete Item', 'Item', 40),
-(54, 'trip.view.all', 'View All Trips (all branches)', 'Trip', 15);
+(50, 'inventory.view', 'View Inventory', 'Inventory', 10),
+(51, 'inventory.create', 'Create Inventory', 'Inventory', 20),
+(52, 'inventory.edit', 'Edit Inventory', 'Inventory', 30),
+(53, 'inventory.delete', 'Delete Inventory', 'Inventory', 40),
+(54, 'trip.view.all', 'View All Trips (all branches)', 'Trip', 15),
+(55, 'consignment.view', 'View Consignments', 'Consignment', 10),
+(56, 'consignment.create', 'Create Consignment', 'Consignment', 20),
+(57, 'consignment.edit', 'Edit Consignment', 'Consignment', 30),
+(58, 'consignment.delete', 'Delete Consignment', 'Consignment', 40),
+(67, 'party_rate.view', 'View Party Rates', 'Party Rate', 10),
+(68, 'party_rate.create', 'Create Party Rates', 'Party Rate', 20),
+(69, 'party_rate.edit', 'Edit Party Rates', 'Party Rate', 30),
+(70, 'party_rate.delete', 'Delete Party Rates', 'Party Rate', 40);
 
 -- --------------------------------------------------------
 
@@ -276,8 +342,7 @@ INSERT INTO `role` (`id`, `role_name`, `role_desc`, `active`, `created_at`, `upd
 (1, 'Admin', 'Full access to everything', 1, '2026-09-21 13:37:10', '2026-09-21 13:37:10'),
 (2, 'Branch Manager', 'Manages a single branch', 1, '2026-09-21 13:37:10', '2026-09-21 13:37:10'),
 (3, 'Operator', 'Daily data entry — parties, trips', 1, '2026-09-21 13:37:10', '2026-09-21 13:37:10'),
-(4, 'Accountant', 'Invoices, payments, and reports', 1, '2026-09-21 13:37:10', '2026-09-21 13:37:10'),
-(5, ' Tester', 'Test Only', 1, '2026-09-22 11:28:20', '2026-09-22 11:50:43');
+(4, 'Accountant', 'Invoices, payments, and reports', 1, '2026-09-21 13:37:10', '2026-09-21 13:37:10');
 
 -- --------------------------------------------------------
 
@@ -379,21 +444,48 @@ INSERT INTO `role_permission` (`id`, `role_id`, `permission_id`) VALUES
 (330, 1, 52),
 (331, 1, 53),
 (335, 1, 54),
-(336, 3, 13),
-(337, 3, 14),
-(338, 3, 15),
-(339, 3, 21),
-(340, 3, 50),
-(341, 3, 9),
-(342, 3, 10),
-(343, 3, 11),
-(344, 3, 5),
-(345, 3, 6),
-(346, 3, 7),
-(347, 3, 25),
-(348, 3, 17),
-(349, 3, 18),
-(350, 3, 19);
+(351, 1, 55),
+(352, 1, 56),
+(353, 1, 57),
+(354, 1, 58),
+(380, 1, 67),
+(381, 1, 68),
+(382, 1, 69),
+(383, 1, 70),
+(407, 3, 13),
+(408, 3, 14),
+(409, 3, 15),
+(410, 3, 50),
+(411, 3, 21),
+(412, 3, 9),
+(413, 3, 10),
+(414, 3, 11),
+(415, 3, 5),
+(416, 3, 6),
+(417, 3, 7),
+(418, 3, 67),
+(419, 3, 68),
+(420, 3, 25),
+(421, 3, 17),
+(422, 3, 18),
+(423, 3, 19);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `supplier`
+--
+
+CREATE TABLE `supplier` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `supplier_name` varchar(100) NOT NULL,
+  `supplier_type` varchar(50) DEFAULT NULL,
+  `phone` varchar(15) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -404,10 +496,10 @@ INSERT INTO `role_permission` (`id`, `role_id`, `permission_id`) VALUES
 CREATE TABLE `trip` (
   `id` int(11) NOT NULL,
   `trip_no` varchar(30) NOT NULL,
+  `source` varchar(100) DEFAULT NULL,
+  `destination` varchar(100) DEFAULT NULL,
   `lorry_id` int(11) DEFAULT NULL,
   `driver_id` int(11) DEFAULT NULL,
-  `from_branch_id` int(11) NOT NULL,
-  `to_branch_id` int(11) NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'Scheduled',
@@ -419,41 +511,25 @@ CREATE TABLE `trip` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `trip`
---
-
-INSERT INTO `trip` (`id`, `trip_no`, `lorry_id`, `driver_id`, `from_branch_id`, `to_branch_id`, `start_date`, `end_date`, `status`, `notes`, `branch_id`, `created_by`, `active`, `created_at`, `updated_at`) VALUES
-(1, 'BOL-2609-0001', 1, 1, 1, 2, '2026-09-23', NULL, 'Scheduled', 'Transporting Food Bolpur to Kolkata', 1, 1, 1, '2026-09-23 10:17:08', '2026-09-23 10:17:08'),
-(2, 'JKD-2609-0001', 2, 2, 3, 1, '2026-09-23', NULL, 'Scheduled', NULL, 3, 3, 1, '2026-09-23 10:49:50', '2026-09-23 10:49:50');
-
 -- --------------------------------------------------------
 
 --
--- Table structure for table `trip_item`
+-- Table structure for table `trip_inventory`
 --
 
-CREATE TABLE `trip_item` (
+CREATE TABLE `trip_inventory` (
   `id` int(11) NOT NULL,
   `trip_party_id` int(11) NOT NULL,
-  `item_id` int(11) DEFAULT NULL,
-  `item_name` varchar(100) NOT NULL,
+  `inventory_id` int(11) DEFAULT NULL,
+  `inventory_name` varchar(100) NOT NULL,
   `unit` varchar(20) DEFAULT NULL,
-  `quantity` decimal(12,3) NOT NULL DEFAULT 0.000,
+  `quantity` int(11) NOT NULL DEFAULT 0,
   `rate` decimal(12,2) NOT NULL DEFAULT 0.00,
   `amount` decimal(14,2) NOT NULL DEFAULT 0.00,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `trip_item`
---
-
-INSERT INTO `trip_item` (`id`, `trip_party_id`, `item_id`, `item_name`, `unit`, `quantity`, `rate`, `amount`, `active`, `created_at`, `updated_at`) VALUES
-(1, 1, NULL, 'Rice', '50 KG', 5.000, 1200.00, 6000.00, 1, '2026-09-23 10:17:08', '2026-09-23 10:17:08'),
-(2, 2, NULL, 'Ciment', '50 KG', 50.000, 450.00, 22500.00, 1, '2026-09-23 10:49:50', '2026-09-23 10:49:50');
 
 -- --------------------------------------------------------
 
@@ -465,21 +541,37 @@ CREATE TABLE `trip_party` (
   `id` int(11) NOT NULL,
   `trip_id` int(11) NOT NULL,
   `party_id` int(11) NOT NULL,
+  `consignee_party_id` int(11) DEFAULT NULL,
   `freight_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `advance_paid` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `freight_mode` tinyint(1) NOT NULL DEFAULT 0,
   `notes` varchar(255) DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `trip_party`
+-- Table structure for table `trip_payment`
 --
 
-INSERT INTO `trip_party` (`id`, `trip_id`, `party_id`, `freight_amount`, `advance_paid`, `notes`, `active`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 5000.00, 0.00, NULL, 1, '2026-09-23 10:17:08', '2026-09-23 10:17:08'),
-(2, 2, 3, 10000.00, 0.00, NULL, 1, '2026-09-23 10:49:50', '2026-09-23 10:49:50');
+CREATE TABLE `trip_payment` (
+  `id` int(11) NOT NULL,
+  `trip_party_id` int(11) NOT NULL,
+  `payment_date` date NOT NULL,
+  `amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `payment_type` varchar(50) NOT NULL,
+  `entry_kind` varchar(10) NOT NULL DEFAULT 'payment',
+  `mode` varchar(30) DEFAULT NULL,
+  `reference` varchar(100) DEFAULT NULL,
+  `notes` varchar(255) DEFAULT NULL,
+  `branch_id` int(11) NOT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -504,26 +596,8 @@ CREATE TABLE `user` (
 --
 
 INSERT INTO `user` (`id`, `username`, `password`, `full_name`, `branch_id`, `role_id`, `active`, `created_at`, `updated_at`) VALUES
-(1, 'starramesh', '225588', '[STAR RAMESH]', 1, 1, 1, '2026-09-21 14:37:05', '2026-09-21 16:27:19'),
-(3, 'ramesh', '123456', 'Ramesh Ghosh', 3, 3, 1, '2026-09-23 14:59:32', '2026-09-23 15:52:47');
-
--- --------------------------------------------------------
-
---
--- Table structure for table `vendor`
---
-
-CREATE TABLE `vendor` (
-  `id` int(10) UNSIGNED NOT NULL,
-  `branch_id` int(10) UNSIGNED DEFAULT NULL,
-  `vendor_name` varchar(100) NOT NULL,
-  `vendor_type` varchar(50) DEFAULT NULL,
-  `phone` varchar(15) DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT 1,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+(1, 'starramesh', '112233', 'Admin', 1, 1, 1, '2026-09-21 14:37:05', '2026-10-04 14:31:37'),
+(3, 'ramesh', '123456', 'Ramesh Ghosh', 1, 3, 1, '2026-09-23 14:59:32', '2026-09-25 13:51:55');
 
 --
 -- Indexes for dumped tables
@@ -533,6 +607,24 @@ CREATE TABLE `vendor` (
 -- Indexes for table `branch`
 --
 ALTER TABLE `branch`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `city`
+--
+ALTER TABLE `city`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `consignment`
+--
+ALTER TABLE `consignment`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `consignment_inventory`
+--
+ALTER TABLE `consignment_inventory`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -548,9 +640,9 @@ ALTER TABLE `expense`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `item`
+-- Indexes for table `inventory`
 --
-ALTER TABLE `item`
+ALTER TABLE `inventory`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -564,6 +656,13 @@ ALTER TABLE `lorry`
 --
 ALTER TABLE `party`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `party_rate`
+--
+ALTER TABLE `party_rate`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `party_inventory_unique` (`party_id`,`inventory_id`);
 
 --
 -- Indexes for table `permission`
@@ -584,15 +683,21 @@ ALTER TABLE `role_permission`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `supplier`
+--
+ALTER TABLE `supplier`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `trip`
 --
 ALTER TABLE `trip`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `trip_item`
+-- Indexes for table `trip_inventory`
 --
-ALTER TABLE `trip_item`
+ALTER TABLE `trip_inventory`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -602,15 +707,15 @@ ALTER TABLE `trip_party`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `user`
+-- Indexes for table `trip_payment`
 --
-ALTER TABLE `user`
+ALTER TABLE `trip_payment`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `vendor`
+-- Indexes for table `user`
 --
-ALTER TABLE `vendor`
+ALTER TABLE `user`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -624,40 +729,64 @@ ALTER TABLE `branch`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `city`
+--
+ALTER TABLE `city`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `consignment`
+--
+ALTER TABLE `consignment`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `consignment_inventory`
+--
+ALTER TABLE `consignment_inventory`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `driver`
 --
 ALTER TABLE `driver`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `expense`
 --
 ALTER TABLE `expense`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `item`
+-- AUTO_INCREMENT for table `inventory`
 --
-ALTER TABLE `item`
+ALTER TABLE `inventory`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `lorry`
 --
 ALTER TABLE `lorry`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `party`
 --
 ALTER TABLE `party`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `party_rate`
+--
+ALTER TABLE `party_rate`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `permission`
 --
 ALTER TABLE `permission`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=71;
 
 --
 -- AUTO_INCREMENT for table `role`
@@ -669,37 +798,43 @@ ALTER TABLE `role`
 -- AUTO_INCREMENT for table `role_permission`
 --
 ALTER TABLE `role_permission`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=351;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=424;
+
+--
+-- AUTO_INCREMENT for table `supplier`
+--
+ALTER TABLE `supplier`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `trip`
 --
 ALTER TABLE `trip`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `trip_item`
+-- AUTO_INCREMENT for table `trip_inventory`
 --
-ALTER TABLE `trip_item`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+ALTER TABLE `trip_inventory`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `trip_party`
 --
 ALTER TABLE `trip_party`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `trip_payment`
+--
+ALTER TABLE `trip_payment`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `user`
 --
 ALTER TABLE `user`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-
---
--- AUTO_INCREMENT for table `vendor`
---
-ALTER TABLE `vendor`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
